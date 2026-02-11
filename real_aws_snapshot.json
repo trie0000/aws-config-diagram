@@ -1,0 +1,2048 @@
+{
+  "configurationItems": [
+    {
+      "resourceType": "AWS::EC2::VPC",
+      "resourceId": "vpc-0673107a2ff6b55e3",
+      "resourceName": "",
+      "configuration": {
+        "ownerId": "768205136599",
+        "instanceTenancy": "default",
+        "cidrBlockAssociationSet": [
+          {
+            "associationId": "vpc-cidr-assoc-0f21bd861f26b1524",
+            "cidrBlock": "172.31.0.0/16",
+            "cidrBlockState": {
+              "state": "associated"
+            }
+          }
+        ],
+        "isDefault": true,
+        "blockPublicAccessStates": {
+          "internetGatewayBlockMode": "off"
+        },
+        "vpcId": "vpc-0673107a2ff6b55e3",
+        "state": "available",
+        "cidrBlock": "172.31.0.0/16",
+        "dhcpOptionsId": "dopt-080e9869735fd5eac"
+      },
+      "tags": {},
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::VPC",
+      "resourceId": "vpc-05e9b964b1ce88123",
+      "resourceName": "diagram-test-vpc",
+      "configuration": {
+        "ownerId": "768205136599",
+        "instanceTenancy": "default",
+        "cidrBlockAssociationSet": [
+          {
+            "associationId": "vpc-cidr-assoc-0305c212ccd9a1e24",
+            "cidrBlock": "10.0.0.0/16",
+            "cidrBlockState": {
+              "state": "associated"
+            }
+          }
+        ],
+        "isDefault": false,
+        "tags": [
+          {
+            "key": "Name",
+            "value": "diagram-test-vpc"
+          }
+        ],
+        "blockPublicAccessStates": {
+          "internetGatewayBlockMode": "off"
+        },
+        "vpcId": "vpc-05e9b964b1ce88123",
+        "state": "available",
+        "cidrBlock": "10.0.0.0/16",
+        "dhcpOptionsId": "dopt-080e9869735fd5eac"
+      },
+      "tags": {
+        "Name": "diagram-test-vpc"
+      },
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::Subnet",
+      "resourceId": "subnet-03da6aa3ef60010d9",
+      "resourceName": "",
+      "configuration": {
+        "availabilityZoneId": "apne1-az2",
+        "mapCustomerOwnedIpOnLaunch": false,
+        "ownerId": "768205136599",
+        "assignIpv6AddressOnCreation": false,
+        "ipv6CidrBlockAssociationSet": [],
+        "subnetArn": "arn:aws:ec2:ap-northeast-1:768205136599:subnet/subnet-03da6aa3ef60010d9",
+        "enableDns64": false,
+        "ipv6Native": false,
+        "privateDnsNameOptionsOnLaunch": {
+          "hostnameType": "ip-name",
+          "enableResourceNameDnsARecord": false,
+          "enableResourceNameDnsAAAARecord": false
+        },
+        "blockPublicAccessStates": {
+          "internetGatewayBlockMode": "off"
+        },
+        "subnetId": "subnet-03da6aa3ef60010d9",
+        "state": "available",
+        "vpcId": "vpc-0673107a2ff6b55e3",
+        "cidrBlock": "172.31.16.0/20",
+        "availableIpAddressCount": 4091,
+        "availabilityZone": "ap-northeast-1d",
+        "defaultForAz": true,
+        "mapPublicIpOnLaunch": true
+      },
+      "tags": {},
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::Subnet",
+      "resourceId": "subnet-005133a2a1cf04c71",
+      "resourceName": "diagram-isolated-1c",
+      "configuration": {
+        "availabilityZoneId": "apne1-az1",
+        "mapCustomerOwnedIpOnLaunch": false,
+        "ownerId": "768205136599",
+        "assignIpv6AddressOnCreation": false,
+        "ipv6CidrBlockAssociationSet": [],
+        "tags": [
+          {
+            "key": "Name",
+            "value": "diagram-isolated-1c"
+          }
+        ],
+        "subnetArn": "arn:aws:ec2:ap-northeast-1:768205136599:subnet/subnet-005133a2a1cf04c71",
+        "enableDns64": false,
+        "ipv6Native": false,
+        "privateDnsNameOptionsOnLaunch": {
+          "hostnameType": "ip-name",
+          "enableResourceNameDnsARecord": false,
+          "enableResourceNameDnsAAAARecord": false
+        },
+        "blockPublicAccessStates": {
+          "internetGatewayBlockMode": "off"
+        },
+        "subnetId": "subnet-005133a2a1cf04c71",
+        "state": "available",
+        "vpcId": "vpc-05e9b964b1ce88123",
+        "cidrBlock": "10.0.22.0/24",
+        "availableIpAddressCount": 251,
+        "availabilityZone": "ap-northeast-1c",
+        "defaultForAz": false,
+        "mapPublicIpOnLaunch": false
+      },
+      "tags": {
+        "Name": "diagram-isolated-1c"
+      },
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::Subnet",
+      "resourceId": "subnet-0d5bfd047d6ee988e",
+      "resourceName": "",
+      "configuration": {
+        "availabilityZoneId": "apne1-az4",
+        "mapCustomerOwnedIpOnLaunch": false,
+        "ownerId": "768205136599",
+        "assignIpv6AddressOnCreation": false,
+        "ipv6CidrBlockAssociationSet": [],
+        "subnetArn": "arn:aws:ec2:ap-northeast-1:768205136599:subnet/subnet-0d5bfd047d6ee988e",
+        "enableDns64": false,
+        "ipv6Native": false,
+        "privateDnsNameOptionsOnLaunch": {
+          "hostnameType": "ip-name",
+          "enableResourceNameDnsARecord": false,
+          "enableResourceNameDnsAAAARecord": false
+        },
+        "blockPublicAccessStates": {
+          "internetGatewayBlockMode": "off"
+        },
+        "subnetId": "subnet-0d5bfd047d6ee988e",
+        "state": "available",
+        "vpcId": "vpc-0673107a2ff6b55e3",
+        "cidrBlock": "172.31.32.0/20",
+        "availableIpAddressCount": 4091,
+        "availabilityZone": "ap-northeast-1a",
+        "defaultForAz": true,
+        "mapPublicIpOnLaunch": true
+      },
+      "tags": {},
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::Subnet",
+      "resourceId": "subnet-00dbe9eb4a942e8d3",
+      "resourceName": "",
+      "configuration": {
+        "availabilityZoneId": "apne1-az1",
+        "mapCustomerOwnedIpOnLaunch": false,
+        "ownerId": "768205136599",
+        "assignIpv6AddressOnCreation": false,
+        "ipv6CidrBlockAssociationSet": [],
+        "subnetArn": "arn:aws:ec2:ap-northeast-1:768205136599:subnet/subnet-00dbe9eb4a942e8d3",
+        "enableDns64": false,
+        "ipv6Native": false,
+        "privateDnsNameOptionsOnLaunch": {
+          "hostnameType": "ip-name",
+          "enableResourceNameDnsARecord": false,
+          "enableResourceNameDnsAAAARecord": false
+        },
+        "blockPublicAccessStates": {
+          "internetGatewayBlockMode": "off"
+        },
+        "subnetId": "subnet-00dbe9eb4a942e8d3",
+        "state": "available",
+        "vpcId": "vpc-0673107a2ff6b55e3",
+        "cidrBlock": "172.31.0.0/20",
+        "availableIpAddressCount": 4091,
+        "availabilityZone": "ap-northeast-1c",
+        "defaultForAz": true,
+        "mapPublicIpOnLaunch": true
+      },
+      "tags": {},
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::Subnet",
+      "resourceId": "subnet-044974fde404dbe24",
+      "resourceName": "diagram-public-1a",
+      "configuration": {
+        "availabilityZoneId": "apne1-az4",
+        "mapCustomerOwnedIpOnLaunch": false,
+        "ownerId": "768205136599",
+        "assignIpv6AddressOnCreation": false,
+        "ipv6CidrBlockAssociationSet": [],
+        "tags": [
+          {
+            "key": "Name",
+            "value": "diagram-public-1a"
+          }
+        ],
+        "subnetArn": "arn:aws:ec2:ap-northeast-1:768205136599:subnet/subnet-044974fde404dbe24",
+        "enableDns64": false,
+        "ipv6Native": false,
+        "privateDnsNameOptionsOnLaunch": {
+          "hostnameType": "ip-name",
+          "enableResourceNameDnsARecord": false,
+          "enableResourceNameDnsAAAARecord": false
+        },
+        "blockPublicAccessStates": {
+          "internetGatewayBlockMode": "off"
+        },
+        "subnetId": "subnet-044974fde404dbe24",
+        "state": "available",
+        "vpcId": "vpc-05e9b964b1ce88123",
+        "cidrBlock": "10.0.1.0/24",
+        "availableIpAddressCount": 248,
+        "availabilityZone": "ap-northeast-1a",
+        "defaultForAz": false,
+        "mapPublicIpOnLaunch": false
+      },
+      "tags": {
+        "Name": "diagram-public-1a"
+      },
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::Subnet",
+      "resourceId": "subnet-05eb56548b36922f9",
+      "resourceName": "diagram-isolated-1a",
+      "configuration": {
+        "availabilityZoneId": "apne1-az4",
+        "mapCustomerOwnedIpOnLaunch": false,
+        "ownerId": "768205136599",
+        "assignIpv6AddressOnCreation": false,
+        "ipv6CidrBlockAssociationSet": [],
+        "tags": [
+          {
+            "key": "Name",
+            "value": "diagram-isolated-1a"
+          }
+        ],
+        "subnetArn": "arn:aws:ec2:ap-northeast-1:768205136599:subnet/subnet-05eb56548b36922f9",
+        "enableDns64": false,
+        "ipv6Native": false,
+        "privateDnsNameOptionsOnLaunch": {
+          "hostnameType": "ip-name",
+          "enableResourceNameDnsARecord": false,
+          "enableResourceNameDnsAAAARecord": false
+        },
+        "blockPublicAccessStates": {
+          "internetGatewayBlockMode": "off"
+        },
+        "subnetId": "subnet-05eb56548b36922f9",
+        "state": "available",
+        "vpcId": "vpc-05e9b964b1ce88123",
+        "cidrBlock": "10.0.21.0/24",
+        "availableIpAddressCount": 249,
+        "availabilityZone": "ap-northeast-1a",
+        "defaultForAz": false,
+        "mapPublicIpOnLaunch": false
+      },
+      "tags": {
+        "Name": "diagram-isolated-1a"
+      },
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::Subnet",
+      "resourceId": "subnet-02596c8034896cb7f",
+      "resourceName": "diagram-public-1c",
+      "configuration": {
+        "availabilityZoneId": "apne1-az1",
+        "mapCustomerOwnedIpOnLaunch": false,
+        "ownerId": "768205136599",
+        "assignIpv6AddressOnCreation": false,
+        "ipv6CidrBlockAssociationSet": [],
+        "tags": [
+          {
+            "key": "Name",
+            "value": "diagram-public-1c"
+          }
+        ],
+        "subnetArn": "arn:aws:ec2:ap-northeast-1:768205136599:subnet/subnet-02596c8034896cb7f",
+        "enableDns64": false,
+        "ipv6Native": false,
+        "privateDnsNameOptionsOnLaunch": {
+          "hostnameType": "ip-name",
+          "enableResourceNameDnsARecord": false,
+          "enableResourceNameDnsAAAARecord": false
+        },
+        "blockPublicAccessStates": {
+          "internetGatewayBlockMode": "off"
+        },
+        "subnetId": "subnet-02596c8034896cb7f",
+        "state": "available",
+        "vpcId": "vpc-05e9b964b1ce88123",
+        "cidrBlock": "10.0.2.0/24",
+        "availableIpAddressCount": 250,
+        "availabilityZone": "ap-northeast-1c",
+        "defaultForAz": false,
+        "mapPublicIpOnLaunch": false
+      },
+      "tags": {
+        "Name": "diagram-public-1c"
+      },
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::Subnet",
+      "resourceId": "subnet-077003f3395100a8b",
+      "resourceName": "diagram-private-1a",
+      "configuration": {
+        "availabilityZoneId": "apne1-az4",
+        "mapCustomerOwnedIpOnLaunch": false,
+        "ownerId": "768205136599",
+        "assignIpv6AddressOnCreation": false,
+        "ipv6CidrBlockAssociationSet": [],
+        "tags": [
+          {
+            "key": "Name",
+            "value": "diagram-private-1a"
+          }
+        ],
+        "subnetArn": "arn:aws:ec2:ap-northeast-1:768205136599:subnet/subnet-077003f3395100a8b",
+        "enableDns64": false,
+        "ipv6Native": false,
+        "privateDnsNameOptionsOnLaunch": {
+          "hostnameType": "ip-name",
+          "enableResourceNameDnsARecord": false,
+          "enableResourceNameDnsAAAARecord": false
+        },
+        "blockPublicAccessStates": {
+          "internetGatewayBlockMode": "off"
+        },
+        "subnetId": "subnet-077003f3395100a8b",
+        "state": "available",
+        "vpcId": "vpc-05e9b964b1ce88123",
+        "cidrBlock": "10.0.11.0/24",
+        "availableIpAddressCount": 248,
+        "availabilityZone": "ap-northeast-1a",
+        "defaultForAz": false,
+        "mapPublicIpOnLaunch": false
+      },
+      "tags": {
+        "Name": "diagram-private-1a"
+      },
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::Subnet",
+      "resourceId": "subnet-0eea20190683d2792",
+      "resourceName": "diagram-private-1c",
+      "configuration": {
+        "availabilityZoneId": "apne1-az1",
+        "mapCustomerOwnedIpOnLaunch": false,
+        "ownerId": "768205136599",
+        "assignIpv6AddressOnCreation": false,
+        "ipv6CidrBlockAssociationSet": [],
+        "tags": [
+          {
+            "key": "Name",
+            "value": "diagram-private-1c"
+          }
+        ],
+        "subnetArn": "arn:aws:ec2:ap-northeast-1:768205136599:subnet/subnet-0eea20190683d2792",
+        "enableDns64": false,
+        "ipv6Native": false,
+        "privateDnsNameOptionsOnLaunch": {
+          "hostnameType": "ip-name",
+          "enableResourceNameDnsARecord": false,
+          "enableResourceNameDnsAAAARecord": false
+        },
+        "blockPublicAccessStates": {
+          "internetGatewayBlockMode": "off"
+        },
+        "subnetId": "subnet-0eea20190683d2792",
+        "state": "available",
+        "vpcId": "vpc-05e9b964b1ce88123",
+        "cidrBlock": "10.0.12.0/24",
+        "availableIpAddressCount": 250,
+        "availabilityZone": "ap-northeast-1c",
+        "defaultForAz": false,
+        "mapPublicIpOnLaunch": false
+      },
+      "tags": {
+        "Name": "diagram-private-1c"
+      },
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::InternetGateway",
+      "resourceId": "igw-0501a8598c1622146",
+      "resourceName": "",
+      "configuration": {
+        "attachments": [
+          {
+            "state": "available",
+            "vpcId": "vpc-0673107a2ff6b55e3"
+          }
+        ],
+        "internetGatewayId": "igw-0501a8598c1622146",
+        "ownerId": "768205136599",
+        "tags": []
+      },
+      "tags": {},
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::InternetGateway",
+      "resourceId": "igw-073993637e47fae91",
+      "resourceName": "diagram-igw",
+      "configuration": {
+        "attachments": [
+          {
+            "state": "available",
+            "vpcId": "vpc-05e9b964b1ce88123"
+          }
+        ],
+        "internetGatewayId": "igw-073993637e47fae91",
+        "ownerId": "768205136599",
+        "tags": [
+          {
+            "key": "Name",
+            "value": "diagram-igw"
+          }
+        ]
+      },
+      "tags": {
+        "Name": "diagram-igw"
+      },
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::NatGateway",
+      "resourceId": "nat-06f7363d3dee51422",
+      "resourceName": "diagram-nat",
+      "configuration": {
+        "createTime": "2026-02-11T09:35:43+00:00",
+        "natGatewayAddresses": [
+          {
+            "allocationId": "eipalloc-0904b8a2cbbe176c8",
+            "networkInterfaceId": "eni-013c92cc4f87d1c06",
+            "privateIp": "10.0.1.150",
+            "publicIp": "54.168.72.14",
+            "associationId": "eipassoc-0ac69feb04804f3dd",
+            "isPrimary": true,
+            "status": "succeeded"
+          }
+        ],
+        "natGatewayId": "nat-06f7363d3dee51422",
+        "state": "available",
+        "subnetId": "subnet-044974fde404dbe24",
+        "vpcId": "vpc-05e9b964b1ce88123",
+        "tags": [
+          {
+            "key": "Name",
+            "value": "diagram-nat"
+          }
+        ],
+        "connectivityType": "public",
+        "availabilityMode": "zonal",
+        "attachedAppliances": []
+      },
+      "tags": {
+        "Name": "diagram-nat"
+      },
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::SecurityGroup",
+      "resourceId": "sg-059b24c9ac414056a",
+      "resourceName": "diagram-db-sg",
+      "configuration": {
+        "groupId": "sg-059b24c9ac414056a",
+        "ipPermissionsEgress": [
+          {
+            "ipProtocol": "-1",
+            "userIdGroupPairs": [],
+            "ipRanges": [
+              {
+                "cidrIp": "0.0.0.0/0"
+              }
+            ],
+            "ipv6Ranges": [],
+            "prefixListIds": []
+          }
+        ],
+        "tags": [
+          {
+            "key": "Name",
+            "value": "diagram-db-sg"
+          }
+        ],
+        "vpcId": "vpc-05e9b964b1ce88123",
+        "securityGroupArn": "arn:aws:ec2:ap-northeast-1:768205136599:security-group/sg-059b24c9ac414056a",
+        "ownerId": "768205136599",
+        "groupName": "diagram-db-sg",
+        "description": "Database Security Group",
+        "ipPermissions": [
+          {
+            "ipProtocol": "tcp",
+            "fromPort": 6379,
+            "toPort": 6379,
+            "userIdGroupPairs": [
+              {
+                "userId": "768205136599",
+                "groupId": "sg-0690fe798c825c1dc"
+              }
+            ],
+            "ipRanges": [],
+            "ipv6Ranges": [],
+            "prefixListIds": []
+          },
+          {
+            "ipProtocol": "tcp",
+            "fromPort": 3306,
+            "toPort": 3306,
+            "userIdGroupPairs": [
+              {
+                "userId": "768205136599",
+                "groupId": "sg-0690fe798c825c1dc"
+              }
+            ],
+            "ipRanges": [],
+            "ipv6Ranges": [],
+            "prefixListIds": []
+          }
+        ]
+      },
+      "tags": {
+        "Name": "diagram-db-sg"
+      },
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::SecurityGroup",
+      "resourceId": "sg-0c7d8156f51b44b57",
+      "resourceName": "default",
+      "configuration": {
+        "groupId": "sg-0c7d8156f51b44b57",
+        "ipPermissionsEgress": [
+          {
+            "ipProtocol": "-1",
+            "userIdGroupPairs": [],
+            "ipRanges": [
+              {
+                "cidrIp": "0.0.0.0/0"
+              }
+            ],
+            "ipv6Ranges": [],
+            "prefixListIds": []
+          }
+        ],
+        "vpcId": "vpc-0673107a2ff6b55e3",
+        "securityGroupArn": "arn:aws:ec2:ap-northeast-1:768205136599:security-group/sg-0c7d8156f51b44b57",
+        "ownerId": "768205136599",
+        "groupName": "default",
+        "description": "default VPC security group",
+        "ipPermissions": [
+          {
+            "ipProtocol": "-1",
+            "userIdGroupPairs": [
+              {
+                "userId": "768205136599",
+                "groupId": "sg-0c7d8156f51b44b57"
+              }
+            ],
+            "ipRanges": [],
+            "ipv6Ranges": [],
+            "prefixListIds": []
+          }
+        ]
+      },
+      "tags": {},
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::SecurityGroup",
+      "resourceId": "sg-00b62b53fbec0faf3",
+      "resourceName": "diagram-bastion-sg",
+      "configuration": {
+        "groupId": "sg-00b62b53fbec0faf3",
+        "ipPermissionsEgress": [
+          {
+            "ipProtocol": "-1",
+            "userIdGroupPairs": [],
+            "ipRanges": [
+              {
+                "cidrIp": "0.0.0.0/0"
+              }
+            ],
+            "ipv6Ranges": [],
+            "prefixListIds": []
+          }
+        ],
+        "tags": [
+          {
+            "key": "Name",
+            "value": "diagram-bastion-sg"
+          }
+        ],
+        "vpcId": "vpc-05e9b964b1ce88123",
+        "securityGroupArn": "arn:aws:ec2:ap-northeast-1:768205136599:security-group/sg-00b62b53fbec0faf3",
+        "ownerId": "768205136599",
+        "groupName": "diagram-bastion-sg",
+        "description": "Bastion Security Group",
+        "ipPermissions": [
+          {
+            "ipProtocol": "tcp",
+            "fromPort": 22,
+            "toPort": 22,
+            "userIdGroupPairs": [],
+            "ipRanges": [
+              {
+                "cidrIp": "0.0.0.0/0"
+              }
+            ],
+            "ipv6Ranges": [],
+            "prefixListIds": []
+          }
+        ]
+      },
+      "tags": {
+        "Name": "diagram-bastion-sg"
+      },
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::SecurityGroup",
+      "resourceId": "sg-0690fe798c825c1dc",
+      "resourceName": "diagram-app-sg",
+      "configuration": {
+        "groupId": "sg-0690fe798c825c1dc",
+        "ipPermissionsEgress": [
+          {
+            "ipProtocol": "-1",
+            "userIdGroupPairs": [],
+            "ipRanges": [
+              {
+                "cidrIp": "0.0.0.0/0"
+              }
+            ],
+            "ipv6Ranges": [],
+            "prefixListIds": []
+          }
+        ],
+        "tags": [
+          {
+            "key": "Name",
+            "value": "diagram-app-sg"
+          }
+        ],
+        "vpcId": "vpc-05e9b964b1ce88123",
+        "securityGroupArn": "arn:aws:ec2:ap-northeast-1:768205136599:security-group/sg-0690fe798c825c1dc",
+        "ownerId": "768205136599",
+        "groupName": "diagram-app-sg",
+        "description": "App Server Security Group",
+        "ipPermissions": [
+          {
+            "ipProtocol": "tcp",
+            "fromPort": 8080,
+            "toPort": 8080,
+            "userIdGroupPairs": [
+              {
+                "userId": "768205136599",
+                "groupId": "sg-074b9a91e6113339d"
+              }
+            ],
+            "ipRanges": [],
+            "ipv6Ranges": [],
+            "prefixListIds": []
+          }
+        ]
+      },
+      "tags": {
+        "Name": "diagram-app-sg"
+      },
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::SecurityGroup",
+      "resourceId": "sg-0d18465ef3be0b0bf",
+      "resourceName": "default",
+      "configuration": {
+        "groupId": "sg-0d18465ef3be0b0bf",
+        "ipPermissionsEgress": [
+          {
+            "ipProtocol": "-1",
+            "userIdGroupPairs": [],
+            "ipRanges": [
+              {
+                "cidrIp": "0.0.0.0/0"
+              }
+            ],
+            "ipv6Ranges": [],
+            "prefixListIds": []
+          }
+        ],
+        "vpcId": "vpc-05e9b964b1ce88123",
+        "securityGroupArn": "arn:aws:ec2:ap-northeast-1:768205136599:security-group/sg-0d18465ef3be0b0bf",
+        "ownerId": "768205136599",
+        "groupName": "default",
+        "description": "default VPC security group",
+        "ipPermissions": [
+          {
+            "ipProtocol": "-1",
+            "userIdGroupPairs": [
+              {
+                "userId": "768205136599",
+                "groupId": "sg-0d18465ef3be0b0bf"
+              }
+            ],
+            "ipRanges": [],
+            "ipv6Ranges": [],
+            "prefixListIds": []
+          }
+        ]
+      },
+      "tags": {},
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::SecurityGroup",
+      "resourceId": "sg-074b9a91e6113339d",
+      "resourceName": "diagram-alb-sg",
+      "configuration": {
+        "groupId": "sg-074b9a91e6113339d",
+        "ipPermissionsEgress": [
+          {
+            "ipProtocol": "-1",
+            "userIdGroupPairs": [],
+            "ipRanges": [
+              {
+                "cidrIp": "0.0.0.0/0"
+              }
+            ],
+            "ipv6Ranges": [],
+            "prefixListIds": []
+          }
+        ],
+        "tags": [
+          {
+            "key": "Name",
+            "value": "diagram-alb-sg"
+          }
+        ],
+        "vpcId": "vpc-05e9b964b1ce88123",
+        "securityGroupArn": "arn:aws:ec2:ap-northeast-1:768205136599:security-group/sg-074b9a91e6113339d",
+        "ownerId": "768205136599",
+        "groupName": "diagram-alb-sg",
+        "description": "ALB Security Group",
+        "ipPermissions": [
+          {
+            "ipProtocol": "tcp",
+            "fromPort": 80,
+            "toPort": 80,
+            "userIdGroupPairs": [],
+            "ipRanges": [
+              {
+                "cidrIp": "0.0.0.0/0"
+              }
+            ],
+            "ipv6Ranges": [],
+            "prefixListIds": []
+          },
+          {
+            "ipProtocol": "tcp",
+            "fromPort": 443,
+            "toPort": 443,
+            "userIdGroupPairs": [],
+            "ipRanges": [
+              {
+                "cidrIp": "0.0.0.0/0"
+              }
+            ],
+            "ipv6Ranges": [],
+            "prefixListIds": []
+          }
+        ]
+      },
+      "tags": {
+        "Name": "diagram-alb-sg"
+      },
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::Instance",
+      "resourceId": "i-00bb0299b7face58f",
+      "resourceName": "diagram-app-1c",
+      "configuration": {
+        "architecture": "x86_64",
+        "blockDeviceMappings": [
+          {
+            "deviceName": "/dev/xvda",
+            "ebs": {
+              "attachTime": "2026-02-11T09:38:41+00:00",
+              "deleteOnTermination": true,
+              "status": "attached",
+              "volumeId": "vol-004623aec9d74122b",
+              "ebsCardIndex": 0
+            }
+          }
+        ],
+        "clientToken": "4bfa2868-be6d-423f-b9c0-a7c551e5adb0",
+        "ebsOptimized": false,
+        "enaSupport": true,
+        "hypervisor": "xen",
+        "networkInterfaces": [
+          {
+            "attachment": {
+              "attachTime": "2026-02-11T09:38:40+00:00",
+              "attachmentId": "eni-attach-052e36bd42e741b85",
+              "deleteOnTermination": true,
+              "deviceIndex": 0,
+              "status": "attached",
+              "networkCardIndex": 0
+            },
+            "description": "",
+            "groups": [
+              {
+                "groupId": "sg-0690fe798c825c1dc",
+                "groupName": "diagram-app-sg"
+              }
+            ],
+            "ipv6Addresses": [],
+            "macAddress": "0a:68:18:2c:df:13",
+            "networkInterfaceId": "eni-0f5d6c4649de364d6",
+            "ownerId": "768205136599",
+            "privateDnsName": "ip-10-0-12-21.ap-northeast-1.compute.internal",
+            "privateIpAddress": "10.0.12.21",
+            "privateIpAddresses": [
+              {
+                "primary": true,
+                "privateDnsName": "ip-10-0-12-21.ap-northeast-1.compute.internal",
+                "privateIpAddress": "10.0.12.21"
+              }
+            ],
+            "sourceDestCheck": true,
+            "status": "in-use",
+            "subnetId": "subnet-0eea20190683d2792",
+            "vpcId": "vpc-05e9b964b1ce88123",
+            "interfaceType": "interface",
+            "operator": {
+              "managed": false
+            }
+          }
+        ],
+        "rootDeviceName": "/dev/xvda",
+        "rootDeviceType": "ebs",
+        "securityGroups": [
+          {
+            "groupId": "sg-0690fe798c825c1dc",
+            "groupName": "diagram-app-sg"
+          }
+        ],
+        "sourceDestCheck": true,
+        "tags": [
+          {
+            "key": "Name",
+            "value": "diagram-app-1c"
+          }
+        ],
+        "virtualizationType": "hvm",
+        "cpuOptions": {
+          "coreCount": 1,
+          "threadsPerCore": 2
+        },
+        "capacityReservationSpecification": {
+          "capacityReservationPreference": "open"
+        },
+        "hibernationOptions": {
+          "configured": false
+        },
+        "metadataOptions": {
+          "state": "applied",
+          "httpTokens": "required",
+          "httpPutResponseHopLimit": 2,
+          "httpEndpoint": "enabled",
+          "httpProtocolIpv6": "disabled",
+          "instanceMetadataTags": "disabled"
+        },
+        "enclaveOptions": {
+          "enabled": false
+        },
+        "bootMode": "uefi-preferred",
+        "platformDetails": "Linux/UNIX",
+        "usageOperation": "RunInstances",
+        "usageOperationUpdateTime": "2026-02-11T09:38:40+00:00",
+        "privateDnsNameOptions": {
+          "hostnameType": "ip-name",
+          "enableResourceNameDnsARecord": false,
+          "enableResourceNameDnsAAAARecord": false
+        },
+        "maintenanceOptions": {
+          "autoRecovery": "default",
+          "rebootMigration": "default"
+        },
+        "currentInstanceBootMode": "uefi",
+        "networkPerformanceOptions": {
+          "bandwidthWeighting": "default"
+        },
+        "operator": {
+          "managed": false
+        },
+        "instanceId": "i-00bb0299b7face58f",
+        "imageId": "ami-0f0e8dab98a36cdd7",
+        "state": {
+          "code": 16,
+          "name": "running"
+        },
+        "privateDnsName": "ip-10-0-12-21.ap-northeast-1.compute.internal",
+        "publicDnsName": "",
+        "stateTransitionReason": "",
+        "amiLaunchIndex": 0,
+        "productCodes": [],
+        "instanceType": "t3.micro",
+        "launchTime": "2026-02-11T09:38:40+00:00",
+        "placement": {
+          "availabilityZoneId": "apne1-az1",
+          "groupName": "",
+          "tenancy": "default",
+          "availabilityZone": "ap-northeast-1c"
+        },
+        "monitoring": {
+          "state": "disabled"
+        },
+        "subnetId": "subnet-0eea20190683d2792",
+        "vpcId": "vpc-05e9b964b1ce88123",
+        "privateIpAddress": "10.0.12.21"
+      },
+      "tags": {
+        "Name": "diagram-app-1c"
+      },
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::Instance",
+      "resourceId": "i-0b0db772d7bfb3395",
+      "resourceName": "diagram-bastion-1a",
+      "configuration": {
+        "architecture": "x86_64",
+        "blockDeviceMappings": [
+          {
+            "deviceName": "/dev/xvda",
+            "ebs": {
+              "attachTime": "2026-02-11T09:38:38+00:00",
+              "deleteOnTermination": true,
+              "status": "attached",
+              "volumeId": "vol-01becad1c6a8a0bd4",
+              "ebsCardIndex": 0
+            }
+          }
+        ],
+        "clientToken": "89794d94-e92a-47ae-bb3a-3a8d14d7fa77",
+        "ebsOptimized": false,
+        "enaSupport": true,
+        "hypervisor": "xen",
+        "networkInterfaces": [
+          {
+            "association": {
+              "ipOwnerId": "amazon",
+              "publicDnsName": "ec2-13-192-188-252.ap-northeast-1.compute.amazonaws.com",
+              "publicIp": "13.192.188.252"
+            },
+            "attachment": {
+              "attachTime": "2026-02-11T09:38:37+00:00",
+              "attachmentId": "eni-attach-04709738ac296460e",
+              "deleteOnTermination": true,
+              "deviceIndex": 0,
+              "status": "attached",
+              "networkCardIndex": 0
+            },
+            "description": "",
+            "groups": [
+              {
+                "groupId": "sg-00b62b53fbec0faf3",
+                "groupName": "diagram-bastion-sg"
+              }
+            ],
+            "ipv6Addresses": [],
+            "macAddress": "06:95:61:7b:33:7d",
+            "networkInterfaceId": "eni-05d1bae70dda3dc34",
+            "ownerId": "768205136599",
+            "privateDnsName": "ip-10-0-1-169.ap-northeast-1.compute.internal",
+            "privateIpAddress": "10.0.1.169",
+            "privateIpAddresses": [
+              {
+                "association": {
+                  "ipOwnerId": "amazon",
+                  "publicDnsName": "ec2-13-192-188-252.ap-northeast-1.compute.amazonaws.com",
+                  "publicIp": "13.192.188.252"
+                },
+                "primary": true,
+                "privateDnsName": "ip-10-0-1-169.ap-northeast-1.compute.internal",
+                "privateIpAddress": "10.0.1.169"
+              }
+            ],
+            "sourceDestCheck": true,
+            "status": "in-use",
+            "subnetId": "subnet-044974fde404dbe24",
+            "vpcId": "vpc-05e9b964b1ce88123",
+            "interfaceType": "interface",
+            "operator": {
+              "managed": false
+            }
+          }
+        ],
+        "rootDeviceName": "/dev/xvda",
+        "rootDeviceType": "ebs",
+        "securityGroups": [
+          {
+            "groupId": "sg-00b62b53fbec0faf3",
+            "groupName": "diagram-bastion-sg"
+          }
+        ],
+        "sourceDestCheck": true,
+        "tags": [
+          {
+            "key": "Name",
+            "value": "diagram-bastion-1a"
+          }
+        ],
+        "virtualizationType": "hvm",
+        "cpuOptions": {
+          "coreCount": 1,
+          "threadsPerCore": 2
+        },
+        "capacityReservationSpecification": {
+          "capacityReservationPreference": "open"
+        },
+        "hibernationOptions": {
+          "configured": false
+        },
+        "metadataOptions": {
+          "state": "applied",
+          "httpTokens": "required",
+          "httpPutResponseHopLimit": 2,
+          "httpEndpoint": "enabled",
+          "httpProtocolIpv6": "disabled",
+          "instanceMetadataTags": "disabled"
+        },
+        "enclaveOptions": {
+          "enabled": false
+        },
+        "bootMode": "uefi-preferred",
+        "platformDetails": "Linux/UNIX",
+        "usageOperation": "RunInstances",
+        "usageOperationUpdateTime": "2026-02-11T09:38:37+00:00",
+        "privateDnsNameOptions": {
+          "hostnameType": "ip-name",
+          "enableResourceNameDnsARecord": false,
+          "enableResourceNameDnsAAAARecord": false
+        },
+        "maintenanceOptions": {
+          "autoRecovery": "default",
+          "rebootMigration": "default"
+        },
+        "currentInstanceBootMode": "uefi",
+        "networkPerformanceOptions": {
+          "bandwidthWeighting": "default"
+        },
+        "operator": {
+          "managed": false
+        },
+        "instanceId": "i-0b0db772d7bfb3395",
+        "imageId": "ami-0f0e8dab98a36cdd7",
+        "state": {
+          "code": 16,
+          "name": "running"
+        },
+        "privateDnsName": "ip-10-0-1-169.ap-northeast-1.compute.internal",
+        "publicDnsName": "ec2-13-192-188-252.ap-northeast-1.compute.amazonaws.com",
+        "stateTransitionReason": "",
+        "amiLaunchIndex": 0,
+        "productCodes": [],
+        "instanceType": "t3.micro",
+        "launchTime": "2026-02-11T09:38:37+00:00",
+        "placement": {
+          "availabilityZoneId": "apne1-az4",
+          "groupName": "",
+          "tenancy": "default",
+          "availabilityZone": "ap-northeast-1a"
+        },
+        "monitoring": {
+          "state": "disabled"
+        },
+        "subnetId": "subnet-044974fde404dbe24",
+        "vpcId": "vpc-05e9b964b1ce88123",
+        "privateIpAddress": "10.0.1.169",
+        "publicIpAddress": "13.192.188.252"
+      },
+      "tags": {
+        "Name": "diagram-bastion-1a"
+      },
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::Instance",
+      "resourceId": "i-03fbd11493c841a0e",
+      "resourceName": "diagram-app-1a",
+      "configuration": {
+        "architecture": "x86_64",
+        "blockDeviceMappings": [
+          {
+            "deviceName": "/dev/xvda",
+            "ebs": {
+              "attachTime": "2026-02-11T09:38:39+00:00",
+              "deleteOnTermination": true,
+              "status": "attached",
+              "volumeId": "vol-04e6177cdfaee4082",
+              "ebsCardIndex": 0
+            }
+          }
+        ],
+        "clientToken": "74ec09d7-199f-4f29-af7f-a85a971be6b3",
+        "ebsOptimized": false,
+        "enaSupport": true,
+        "hypervisor": "xen",
+        "networkInterfaces": [
+          {
+            "attachment": {
+              "attachTime": "2026-02-11T09:38:39+00:00",
+              "attachmentId": "eni-attach-078278c621270e2e7",
+              "deleteOnTermination": true,
+              "deviceIndex": 0,
+              "status": "attached",
+              "networkCardIndex": 0
+            },
+            "description": "",
+            "groups": [
+              {
+                "groupId": "sg-0690fe798c825c1dc",
+                "groupName": "diagram-app-sg"
+              }
+            ],
+            "ipv6Addresses": [],
+            "macAddress": "06:d7:91:23:d5:97",
+            "networkInterfaceId": "eni-0e1f2b98d6b494fd2",
+            "ownerId": "768205136599",
+            "privateDnsName": "ip-10-0-11-222.ap-northeast-1.compute.internal",
+            "privateIpAddress": "10.0.11.222",
+            "privateIpAddresses": [
+              {
+                "primary": true,
+                "privateDnsName": "ip-10-0-11-222.ap-northeast-1.compute.internal",
+                "privateIpAddress": "10.0.11.222"
+              }
+            ],
+            "sourceDestCheck": true,
+            "status": "in-use",
+            "subnetId": "subnet-077003f3395100a8b",
+            "vpcId": "vpc-05e9b964b1ce88123",
+            "interfaceType": "interface",
+            "operator": {
+              "managed": false
+            }
+          }
+        ],
+        "rootDeviceName": "/dev/xvda",
+        "rootDeviceType": "ebs",
+        "securityGroups": [
+          {
+            "groupId": "sg-0690fe798c825c1dc",
+            "groupName": "diagram-app-sg"
+          }
+        ],
+        "sourceDestCheck": true,
+        "tags": [
+          {
+            "key": "Name",
+            "value": "diagram-app-1a"
+          }
+        ],
+        "virtualizationType": "hvm",
+        "cpuOptions": {
+          "coreCount": 1,
+          "threadsPerCore": 2
+        },
+        "capacityReservationSpecification": {
+          "capacityReservationPreference": "open"
+        },
+        "hibernationOptions": {
+          "configured": false
+        },
+        "metadataOptions": {
+          "state": "applied",
+          "httpTokens": "required",
+          "httpPutResponseHopLimit": 2,
+          "httpEndpoint": "enabled",
+          "httpProtocolIpv6": "disabled",
+          "instanceMetadataTags": "disabled"
+        },
+        "enclaveOptions": {
+          "enabled": false
+        },
+        "bootMode": "uefi-preferred",
+        "platformDetails": "Linux/UNIX",
+        "usageOperation": "RunInstances",
+        "usageOperationUpdateTime": "2026-02-11T09:38:39+00:00",
+        "privateDnsNameOptions": {
+          "hostnameType": "ip-name",
+          "enableResourceNameDnsARecord": false,
+          "enableResourceNameDnsAAAARecord": false
+        },
+        "maintenanceOptions": {
+          "autoRecovery": "default",
+          "rebootMigration": "default"
+        },
+        "currentInstanceBootMode": "uefi",
+        "networkPerformanceOptions": {
+          "bandwidthWeighting": "default"
+        },
+        "operator": {
+          "managed": false
+        },
+        "instanceId": "i-03fbd11493c841a0e",
+        "imageId": "ami-0f0e8dab98a36cdd7",
+        "state": {
+          "code": 16,
+          "name": "running"
+        },
+        "privateDnsName": "ip-10-0-11-222.ap-northeast-1.compute.internal",
+        "publicDnsName": "",
+        "stateTransitionReason": "",
+        "amiLaunchIndex": 0,
+        "productCodes": [],
+        "instanceType": "t3.micro",
+        "launchTime": "2026-02-11T09:38:39+00:00",
+        "placement": {
+          "availabilityZoneId": "apne1-az4",
+          "groupName": "",
+          "tenancy": "default",
+          "availabilityZone": "ap-northeast-1a"
+        },
+        "monitoring": {
+          "state": "disabled"
+        },
+        "subnetId": "subnet-077003f3395100a8b",
+        "vpcId": "vpc-05e9b964b1ce88123",
+        "privateIpAddress": "10.0.11.222"
+      },
+      "tags": {
+        "Name": "diagram-app-1a"
+      },
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::Instance",
+      "resourceId": "i-0efe316ab9639a167",
+      "resourceName": "diagram-batch-1a",
+      "configuration": {
+        "architecture": "x86_64",
+        "blockDeviceMappings": [
+          {
+            "deviceName": "/dev/xvda",
+            "ebs": {
+              "attachTime": "2026-02-11T09:38:42+00:00",
+              "deleteOnTermination": true,
+              "status": "attached",
+              "volumeId": "vol-0b25c68a4147c57e4",
+              "ebsCardIndex": 0
+            }
+          }
+        ],
+        "clientToken": "3e130f6f-cc0e-4eff-8aff-165ab67d029a",
+        "ebsOptimized": false,
+        "enaSupport": true,
+        "hypervisor": "xen",
+        "networkInterfaces": [
+          {
+            "attachment": {
+              "attachTime": "2026-02-11T09:38:42+00:00",
+              "attachmentId": "eni-attach-00d3c7bcd3ecbb0fc",
+              "deleteOnTermination": true,
+              "deviceIndex": 0,
+              "status": "attached",
+              "networkCardIndex": 0
+            },
+            "description": "",
+            "groups": [
+              {
+                "groupId": "sg-0690fe798c825c1dc",
+                "groupName": "diagram-app-sg"
+              }
+            ],
+            "ipv6Addresses": [],
+            "macAddress": "06:48:1d:66:b9:23",
+            "networkInterfaceId": "eni-05b82adc345de9602",
+            "ownerId": "768205136599",
+            "privateDnsName": "ip-10-0-11-187.ap-northeast-1.compute.internal",
+            "privateIpAddress": "10.0.11.187",
+            "privateIpAddresses": [
+              {
+                "primary": true,
+                "privateDnsName": "ip-10-0-11-187.ap-northeast-1.compute.internal",
+                "privateIpAddress": "10.0.11.187"
+              }
+            ],
+            "sourceDestCheck": true,
+            "status": "in-use",
+            "subnetId": "subnet-077003f3395100a8b",
+            "vpcId": "vpc-05e9b964b1ce88123",
+            "interfaceType": "interface",
+            "operator": {
+              "managed": false
+            }
+          }
+        ],
+        "rootDeviceName": "/dev/xvda",
+        "rootDeviceType": "ebs",
+        "securityGroups": [
+          {
+            "groupId": "sg-0690fe798c825c1dc",
+            "groupName": "diagram-app-sg"
+          }
+        ],
+        "sourceDestCheck": true,
+        "tags": [
+          {
+            "key": "Name",
+            "value": "diagram-batch-1a"
+          }
+        ],
+        "virtualizationType": "hvm",
+        "cpuOptions": {
+          "coreCount": 1,
+          "threadsPerCore": 2
+        },
+        "capacityReservationSpecification": {
+          "capacityReservationPreference": "open"
+        },
+        "hibernationOptions": {
+          "configured": false
+        },
+        "metadataOptions": {
+          "state": "applied",
+          "httpTokens": "required",
+          "httpPutResponseHopLimit": 2,
+          "httpEndpoint": "enabled",
+          "httpProtocolIpv6": "disabled",
+          "instanceMetadataTags": "disabled"
+        },
+        "enclaveOptions": {
+          "enabled": false
+        },
+        "bootMode": "uefi-preferred",
+        "platformDetails": "Linux/UNIX",
+        "usageOperation": "RunInstances",
+        "usageOperationUpdateTime": "2026-02-11T09:38:42+00:00",
+        "privateDnsNameOptions": {
+          "hostnameType": "ip-name",
+          "enableResourceNameDnsARecord": false,
+          "enableResourceNameDnsAAAARecord": false
+        },
+        "maintenanceOptions": {
+          "autoRecovery": "default",
+          "rebootMigration": "default"
+        },
+        "currentInstanceBootMode": "uefi",
+        "networkPerformanceOptions": {
+          "bandwidthWeighting": "default"
+        },
+        "operator": {
+          "managed": false
+        },
+        "instanceId": "i-0efe316ab9639a167",
+        "imageId": "ami-0f0e8dab98a36cdd7",
+        "state": {
+          "code": 16,
+          "name": "running"
+        },
+        "privateDnsName": "ip-10-0-11-187.ap-northeast-1.compute.internal",
+        "publicDnsName": "",
+        "stateTransitionReason": "",
+        "amiLaunchIndex": 0,
+        "productCodes": [],
+        "instanceType": "t3.micro",
+        "launchTime": "2026-02-11T09:38:42+00:00",
+        "placement": {
+          "availabilityZoneId": "apne1-az4",
+          "groupName": "",
+          "tenancy": "default",
+          "availabilityZone": "ap-northeast-1a"
+        },
+        "monitoring": {
+          "state": "disabled"
+        },
+        "subnetId": "subnet-077003f3395100a8b",
+        "vpcId": "vpc-05e9b964b1ce88123",
+        "privateIpAddress": "10.0.11.187"
+      },
+      "tags": {
+        "Name": "diagram-batch-1a"
+      },
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::RouteTable",
+      "resourceId": "rtb-0853457f2cf708b3c",
+      "resourceName": "",
+      "configuration": {
+        "associations": [
+          {
+            "main": true,
+            "routeTableAssociationId": "rtbassoc-07cb828d3e3a0c2f7",
+            "routeTableId": "rtb-0853457f2cf708b3c",
+            "associationState": {
+              "state": "associated"
+            }
+          }
+        ],
+        "propagatingVgws": [],
+        "routeTableId": "rtb-0853457f2cf708b3c",
+        "routes": [
+          {
+            "destinationCidrBlock": "10.0.0.0/16",
+            "gatewayId": "local",
+            "origin": "CreateRouteTable",
+            "state": "active"
+          }
+        ],
+        "tags": [],
+        "vpcId": "vpc-05e9b964b1ce88123",
+        "ownerId": "768205136599"
+      },
+      "tags": {},
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::RouteTable",
+      "resourceId": "rtb-053676d79c8fb8758",
+      "resourceName": "",
+      "configuration": {
+        "associations": [
+          {
+            "main": true,
+            "routeTableAssociationId": "rtbassoc-01401d93a82237c81",
+            "routeTableId": "rtb-053676d79c8fb8758",
+            "associationState": {
+              "state": "associated"
+            }
+          }
+        ],
+        "propagatingVgws": [],
+        "routeTableId": "rtb-053676d79c8fb8758",
+        "routes": [
+          {
+            "destinationCidrBlock": "172.31.0.0/16",
+            "gatewayId": "local",
+            "origin": "CreateRouteTable",
+            "state": "active"
+          },
+          {
+            "destinationCidrBlock": "0.0.0.0/0",
+            "gatewayId": "igw-0501a8598c1622146",
+            "origin": "CreateRoute",
+            "state": "active"
+          }
+        ],
+        "tags": [],
+        "vpcId": "vpc-0673107a2ff6b55e3",
+        "ownerId": "768205136599"
+      },
+      "tags": {},
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::RouteTable",
+      "resourceId": "rtb-0bb6198fc331cd7da",
+      "resourceName": "diagram-public-rt",
+      "configuration": {
+        "associations": [
+          {
+            "main": false,
+            "routeTableAssociationId": "rtbassoc-0f40a86569375d141",
+            "routeTableId": "rtb-0bb6198fc331cd7da",
+            "subnetId": "subnet-02596c8034896cb7f",
+            "associationState": {
+              "state": "associated"
+            }
+          },
+          {
+            "main": false,
+            "routeTableAssociationId": "rtbassoc-09d1b9f8c25068ea8",
+            "routeTableId": "rtb-0bb6198fc331cd7da",
+            "subnetId": "subnet-044974fde404dbe24",
+            "associationState": {
+              "state": "associated"
+            }
+          }
+        ],
+        "propagatingVgws": [],
+        "routeTableId": "rtb-0bb6198fc331cd7da",
+        "routes": [
+          {
+            "destinationCidrBlock": "10.0.0.0/16",
+            "gatewayId": "local",
+            "origin": "CreateRouteTable",
+            "state": "active"
+          },
+          {
+            "destinationCidrBlock": "0.0.0.0/0",
+            "gatewayId": "igw-073993637e47fae91",
+            "origin": "CreateRoute",
+            "state": "active"
+          }
+        ],
+        "tags": [
+          {
+            "key": "Name",
+            "value": "diagram-public-rt"
+          }
+        ],
+        "vpcId": "vpc-05e9b964b1ce88123",
+        "ownerId": "768205136599"
+      },
+      "tags": {
+        "Name": "diagram-public-rt"
+      },
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::RouteTable",
+      "resourceId": "rtb-0c884c5c2e2b62f41",
+      "resourceName": "diagram-isolated-rt",
+      "configuration": {
+        "associations": [
+          {
+            "main": false,
+            "routeTableAssociationId": "rtbassoc-04957a2bc65687919",
+            "routeTableId": "rtb-0c884c5c2e2b62f41",
+            "subnetId": "subnet-05eb56548b36922f9",
+            "associationState": {
+              "state": "associated"
+            }
+          },
+          {
+            "main": false,
+            "routeTableAssociationId": "rtbassoc-07760d520acfbfce1",
+            "routeTableId": "rtb-0c884c5c2e2b62f41",
+            "subnetId": "subnet-005133a2a1cf04c71",
+            "associationState": {
+              "state": "associated"
+            }
+          }
+        ],
+        "propagatingVgws": [],
+        "routeTableId": "rtb-0c884c5c2e2b62f41",
+        "routes": [
+          {
+            "destinationCidrBlock": "10.0.0.0/16",
+            "gatewayId": "local",
+            "origin": "CreateRouteTable",
+            "state": "active"
+          }
+        ],
+        "tags": [
+          {
+            "key": "Name",
+            "value": "diagram-isolated-rt"
+          }
+        ],
+        "vpcId": "vpc-05e9b964b1ce88123",
+        "ownerId": "768205136599"
+      },
+      "tags": {
+        "Name": "diagram-isolated-rt"
+      },
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::EC2::RouteTable",
+      "resourceId": "rtb-0e16651481a7cb61a",
+      "resourceName": "diagram-private-rt",
+      "configuration": {
+        "associations": [
+          {
+            "main": false,
+            "routeTableAssociationId": "rtbassoc-0e3f312093e103dd2",
+            "routeTableId": "rtb-0e16651481a7cb61a",
+            "subnetId": "subnet-077003f3395100a8b",
+            "associationState": {
+              "state": "associated"
+            }
+          },
+          {
+            "main": false,
+            "routeTableAssociationId": "rtbassoc-0b1ed07be48204f98",
+            "routeTableId": "rtb-0e16651481a7cb61a",
+            "subnetId": "subnet-0eea20190683d2792",
+            "associationState": {
+              "state": "associated"
+            }
+          }
+        ],
+        "propagatingVgws": [],
+        "routeTableId": "rtb-0e16651481a7cb61a",
+        "routes": [
+          {
+            "destinationCidrBlock": "10.0.0.0/16",
+            "gatewayId": "local",
+            "origin": "CreateRouteTable",
+            "state": "active"
+          },
+          {
+            "destinationCidrBlock": "0.0.0.0/0",
+            "natGatewayId": "nat-06f7363d3dee51422",
+            "origin": "CreateRoute",
+            "state": "active"
+          }
+        ],
+        "tags": [
+          {
+            "key": "Name",
+            "value": "diagram-private-rt"
+          }
+        ],
+        "vpcId": "vpc-05e9b964b1ce88123",
+        "ownerId": "768205136599"
+      },
+      "tags": {
+        "Name": "diagram-private-rt"
+      },
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+      "resourceId": "fe0438d44f9d8797",
+      "resourceName": "diagram-alb",
+      "configuration": {
+        "loadBalancerArn": "arn:aws:elasticloadbalancing:ap-northeast-1:768205136599:loadbalancer/app/diagram-alb/fe0438d44f9d8797",
+        "dNSName": "diagram-alb-230338802.ap-northeast-1.elb.amazonaws.com",
+        "canonicalHostedZoneId": "Z14GRHDCWA56QT",
+        "createdTime": "2026-02-11T09:38:51.309000+00:00",
+        "loadBalancerName": "diagram-alb",
+        "scheme": "internet-facing",
+        "vpcId": "vpc-05e9b964b1ce88123",
+        "state": {
+          "code": "active"
+        },
+        "type": "application",
+        "availabilityZones": [
+          {
+            "zoneName": "ap-northeast-1c",
+            "subnetId": "subnet-02596c8034896cb7f",
+            "loadBalancerAddresses": []
+          },
+          {
+            "zoneName": "ap-northeast-1a",
+            "subnetId": "subnet-044974fde404dbe24",
+            "loadBalancerAddresses": []
+          }
+        ],
+        "securityGroups": [
+          "sg-074b9a91e6113339d"
+        ],
+        "ipAddressType": "ipv4",
+        "enablePrefixForIpv6SourceNat": "off"
+      },
+      "tags": {},
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::RDS::DBInstance",
+      "resourceId": "diagram-mysql",
+      "resourceName": "diagram-mysql",
+      "configuration": {
+        "dBInstanceIdentifier": "diagram-mysql",
+        "dBInstanceClass": "db.t3.micro",
+        "engine": "mysql",
+        "dBInstanceStatus": "available",
+        "masterUsername": "admin",
+        "endpoint": {
+          "address": "diagram-mysql.c3eiyammu1s2.ap-northeast-1.rds.amazonaws.com",
+          "port": 3306,
+          "hostedZoneId": "Z24O6O9L7SGTNB"
+        },
+        "allocatedStorage": 20,
+        "instanceCreateTime": "2026-02-11T09:42:51.262000+00:00",
+        "preferredBackupWindow": "18:48-19:18",
+        "backupRetentionPeriod": 1,
+        "dBSecurityGroups": [],
+        "vpcSecurityGroups": [
+          {
+            "vpcSecurityGroupId": "sg-059b24c9ac414056a",
+            "status": "active"
+          }
+        ],
+        "dBParameterGroups": [
+          {
+            "dBParameterGroupName": "default.mysql8.4",
+            "parameterApplyStatus": "in-sync"
+          }
+        ],
+        "availabilityZone": "ap-northeast-1a",
+        "dBSubnetGroup": {
+          "dBSubnetGroupName": "diagram-db-subnet",
+          "dBSubnetGroupDescription": "Diagram test DB subnet group",
+          "vpcId": "vpc-05e9b964b1ce88123",
+          "subnetGroupStatus": "Complete",
+          "subnets": [
+            {
+              "subnetIdentifier": "subnet-005133a2a1cf04c71",
+              "subnetAvailabilityZone": {
+                "name": "ap-northeast-1c"
+              },
+              "subnetOutpost": {},
+              "subnetStatus": "Active"
+            },
+            {
+              "subnetIdentifier": "subnet-05eb56548b36922f9",
+              "subnetAvailabilityZone": {
+                "name": "ap-northeast-1a"
+              },
+              "subnetOutpost": {},
+              "subnetStatus": "Active"
+            }
+          ]
+        },
+        "preferredMaintenanceWindow": "mon:13:14-mon:13:44",
+        "upgradeRolloutOrder": "second",
+        "pendingModifiedValues": {},
+        "latestRestorableTime": "2026-02-11T09:50:00+00:00",
+        "multiAZ": false,
+        "engineVersion": "8.4.7",
+        "autoMinorVersionUpgrade": true,
+        "readReplicaDBInstanceIdentifiers": [],
+        "licenseModel": "general-public-license",
+        "storageThroughput": 0,
+        "optionGroupMemberships": [
+          {
+            "optionGroupName": "default:mysql-8-4",
+            "status": "in-sync"
+          }
+        ],
+        "publiclyAccessible": false,
+        "storageType": "gp2",
+        "dbInstancePort": 0,
+        "storageEncrypted": false,
+        "dbiResourceId": "db-CHD7LUHGHPZV6VCMWBTDGKKTQU",
+        "cACertificateIdentifier": "rds-ca-rsa2048-g1",
+        "domainMemberships": [],
+        "copyTagsToSnapshot": false,
+        "monitoringInterval": 0,
+        "dBInstanceArn": "arn:aws:rds:ap-northeast-1:768205136599:db:diagram-mysql",
+        "iAMDatabaseAuthenticationEnabled": false,
+        "databaseInsightsMode": "standard",
+        "performanceInsightsEnabled": false,
+        "deletionProtection": false,
+        "associatedRoles": [],
+        "tagList": [
+          {
+            "key": "Name",
+            "value": "diagram-mysql"
+          }
+        ],
+        "customerOwnedIpEnabled": false,
+        "networkType": "IPV4",
+        "activityStreamStatus": "stopped",
+        "backupTarget": "region",
+        "certificateDetails": {
+          "cAIdentifier": "rds-ca-rsa2048-g1",
+          "validTill": "2027-02-11T09:41:27+00:00"
+        },
+        "dedicatedLogVolume": false,
+        "isStorageConfigUpgradeAvailable": false,
+        "engineLifecycleSupport": "open-source-rds-extended-support"
+      },
+      "tags": {},
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::Lambda::Function",
+      "resourceId": "diagram-api-handler",
+      "resourceName": "diagram-api-handler",
+      "configuration": {
+        "functionName": "diagram-api-handler",
+        "functionArn": "arn:aws:lambda:ap-northeast-1:768205136599:function:diagram-api-handler",
+        "runtime": "python3.12",
+        "role": "arn:aws:iam::768205136599:role/diagram-lambda-role",
+        "handler": "index.handler",
+        "codeSize": 261,
+        "description": "",
+        "timeout": 30,
+        "memorySize": 128,
+        "lastModified": "2026-02-11T09:39:58.007+0000",
+        "codeSha256": "zgIcq2GmljMt1edmD+D1aaejbyQ5iU26m3BUTspZXbQ=",
+        "version": "$LATEST",
+        "tracingConfig": {
+          "mode": "PassThrough"
+        },
+        "revisionId": "3378a8d4-d7d1-4ec7-85f8-bb5badb686d2",
+        "state": "Active",
+        "lastUpdateStatus": "Successful",
+        "packageType": "Zip",
+        "architectures": [
+          "x86_64"
+        ],
+        "ephemeralStorage": {
+          "size": 512
+        },
+        "snapStart": {
+          "applyOn": "None",
+          "optimizationStatus": "Off"
+        },
+        "runtimeVersionConfig": {
+          "runtimeVersionArn": "arn:aws:lambda:ap-northeast-1::runtime:e7b9763d75065b03bd2f1c073b67ce436566c24009faa1c13d7389d7ba98f259"
+        },
+        "loggingConfig": {
+          "logFormat": "Text",
+          "logGroup": "/aws/lambda/diagram-api-handler"
+        }
+      },
+      "tags": {},
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::Lambda::Function",
+      "resourceId": "diagram-vpc-processor",
+      "resourceName": "diagram-vpc-processor",
+      "configuration": {
+        "functionName": "diagram-vpc-processor",
+        "functionArn": "arn:aws:lambda:ap-northeast-1:768205136599:function:diagram-vpc-processor",
+        "runtime": "python3.12",
+        "role": "arn:aws:iam::768205136599:role/diagram-lambda-role",
+        "handler": "index.handler",
+        "codeSize": 256,
+        "description": "",
+        "timeout": 30,
+        "memorySize": 128,
+        "lastModified": "2026-02-11T09:39:56.622+0000",
+        "codeSha256": "pT82UbOZWNwXvo24WYIwpspA0xWUKL93+vgG7cgRR1k=",
+        "version": "$LATEST",
+        "vpcConfig": {
+          "subnetIds": [
+            "subnet-077003f3395100a8b"
+          ],
+          "securityGroupIds": [
+            "sg-0690fe798c825c1dc"
+          ],
+          "vpcId": "vpc-05e9b964b1ce88123",
+          "ipv6AllowedForDualStack": false
+        },
+        "tracingConfig": {
+          "mode": "PassThrough"
+        },
+        "revisionId": "9cb5f95b-91ec-4b30-91cb-d1408f350861",
+        "state": "Active",
+        "lastUpdateStatus": "Successful",
+        "packageType": "Zip",
+        "architectures": [
+          "x86_64"
+        ],
+        "ephemeralStorage": {
+          "size": 512
+        },
+        "snapStart": {
+          "applyOn": "None",
+          "optimizationStatus": "Off"
+        },
+        "runtimeVersionConfig": {
+          "runtimeVersionArn": "arn:aws:lambda:ap-northeast-1::runtime:e7b9763d75065b03bd2f1c073b67ce436566c24009faa1c13d7389d7ba98f259"
+        },
+        "loggingConfig": {
+          "logFormat": "Text",
+          "logGroup": "/aws/lambda/diagram-vpc-processor"
+        }
+      },
+      "tags": {},
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::ElastiCache::CacheCluster",
+      "resourceId": "diagram-redis",
+      "resourceName": "diagram-redis",
+      "configuration": {
+        "cacheClusterId": "diagram-redis",
+        "clientDownloadLandingPage": "https://console.aws.amazon.com/elasticache/home#client-download:",
+        "cacheNodeType": "cache.t3.micro",
+        "engine": "redis",
+        "engineVersion": "7.1.0",
+        "cacheClusterStatus": "available",
+        "numCacheNodes": 1,
+        "preferredAvailabilityZone": "ap-northeast-1a",
+        "cacheClusterCreateTime": "2026-02-11T09:47:34.013000+00:00",
+        "preferredMaintenanceWindow": "sun:17:00-sun:18:00",
+        "pendingModifiedValues": {},
+        "cacheSecurityGroups": [],
+        "cacheParameterGroup": {
+          "cacheParameterGroupName": "default.redis7",
+          "parameterApplyStatus": "in-sync",
+          "cacheNodeIdsToReboot": []
+        },
+        "cacheSubnetGroupName": "diagram-cache-subnet",
+        "cacheNodes": [
+          {
+            "cacheNodeId": "0001",
+            "cacheNodeStatus": "available",
+            "cacheNodeCreateTime": "2026-02-11T09:47:34.013000+00:00",
+            "endpoint": {
+              "address": "diagram-redis.0znv6d.0001.apne1.cache.amazonaws.com",
+              "port": 6379
+            },
+            "parameterGroupStatus": "in-sync",
+            "customerAvailabilityZone": "ap-northeast-1a"
+          }
+        ],
+        "autoMinorVersionUpgrade": true,
+        "securityGroups": [
+          {
+            "securityGroupId": "sg-059b24c9ac414056a",
+            "status": "active"
+          }
+        ],
+        "snapshotRetentionLimit": 0,
+        "snapshotWindow": "13:30-14:30",
+        "authTokenEnabled": false,
+        "transitEncryptionEnabled": false,
+        "atRestEncryptionEnabled": false,
+        "aRN": "arn:aws:elasticache:ap-northeast-1:768205136599:cluster:diagram-redis",
+        "replicationGroupLogDeliveryEnabled": false,
+        "logDeliveryConfigurations": [],
+        "networkType": "ipv4",
+        "ipDiscovery": "ipv4"
+      },
+      "tags": {},
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::S3::Bucket",
+      "resourceId": "diagram-test-bucket-1770802780",
+      "resourceName": "diagram-test-bucket-1770802780",
+      "configuration": {
+        "name": "diagram-test-bucket-1770802780",
+        "creationDate": "2026-02-11T09:45:39+00:00",
+        "bucketArn": "arn:aws:s3:::diagram-test-bucket-1770802780"
+      },
+      "tags": {},
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::SQS::Queue",
+      "resourceId": "diagram-test-queue",
+      "resourceName": "diagram-test-queue",
+      "configuration": {
+        "queueUrl": "https://sqs.ap-northeast-1.amazonaws.com/768205136599/diagram-test-queue",
+        "queueArn": "arn:aws:sqs:ap-northeast-1:768205136599:diagram-test-queue",
+        "approximateNumberOfMessages": "0",
+        "approximateNumberOfMessagesNotVisible": "0",
+        "approximateNumberOfMessagesDelayed": "0",
+        "createdTimestamp": "1770802781",
+        "lastModifiedTimestamp": "1770802781",
+        "visibilityTimeout": "30",
+        "maximumMessageSize": "1048576",
+        "messageRetentionPeriod": "345600",
+        "delaySeconds": "0",
+        "receiveMessageWaitTimeSeconds": "0",
+        "sqsManagedSseEnabled": "true"
+      },
+      "tags": {},
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::SNS::Topic",
+      "resourceId": "diagram-test-topic",
+      "resourceName": "diagram-test-topic",
+      "configuration": {
+        "topicArn": "arn:aws:sns:ap-northeast-1:768205136599:diagram-test-topic"
+      },
+      "tags": {},
+      "awsRegion": "ap-northeast-1"
+    },
+    {
+      "resourceType": "AWS::WAFv2::WebACL",
+      "resourceId": "9655b023-ee7e-40b9-8a58-26ec3d61bfc5",
+      "resourceName": "diagram-waf",
+      "configuration": {
+        "name": "diagram-waf",
+        "id": "9655b023-ee7e-40b9-8a58-26ec3d61bfc5",
+        "aRN": "arn:aws:wafv2:ap-northeast-1:768205136599:regional/webacl/diagram-waf/9655b023-ee7e-40b9-8a58-26ec3d61bfc5",
+        "defaultAction": {
+          "allow": {}
+        },
+        "description": "",
+        "rules": [
+          {
+            "name": "rate-limit",
+            "priority": 1,
+            "statement": {
+              "rateBasedStatement": {
+                "limit": 2000,
+                "evaluationWindowSec": 300,
+                "aggregateKeyType": "IP"
+              }
+            },
+            "action": {
+              "block": {}
+            },
+            "visibilityConfig": {
+              "sampledRequestsEnabled": true,
+              "cloudWatchMetricsEnabled": true,
+              "metricName": "rate-limit"
+            }
+          }
+        ],
+        "visibilityConfig": {
+          "sampledRequestsEnabled": true,
+          "cloudWatchMetricsEnabled": true,
+          "metricName": "diagram-waf"
+        },
+        "capacity": 2,
+        "managedByFirewallManager": false,
+        "labelNamespace": "awswaf:768205136599:webacl:diagram-waf:",
+        "retrofittedByFirewallManager": false,
+        "onSourceDDoSProtectionConfig": {
+          "aLBLowReputationMode": "ACTIVE_UNDER_DDOS"
+        },
+        "_associated_resources": [
+          "arn:aws:elasticloadbalancing:ap-northeast-1:768205136599:loadbalancer/app/diagram-alb/fe0438d44f9d8797"
+        ]
+      },
+      "tags": {},
+      "awsRegion": "ap-northeast-1"
+    }
+  ]
+}

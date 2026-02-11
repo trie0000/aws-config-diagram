@@ -165,19 +165,86 @@ class AWSConfigParser:
             })
         return vpcs
 
+    def _build_subnet_tier_map(self, vpc_id):
+        """Build subnet->tier map using route table analysis.
+
+        - Public: route table has 0.0.0.0/0 -> IGW
+        - Private: route table has 0.0.0.0/0 -> NAT GW (or other)
+        - Isolated: route table has NO 0.0.0.0/0 route
+        """
+        subnet_tier = {}
+        for item in self.by_type["AWS::EC2::RouteTable"]:
+            cfg = item.get("configuration", {})
+            if cfg.get("vpcId") != vpc_id:
+                continue
+            routes = cfg.get("routes", cfg.get("routeSet", []))
+            has_igw = False
+            has_nat = False
+            has_default = False
+            for r in routes:
+                dest = r.get("destinationCidrBlock",
+                             r.get("destinationCidr", ""))
+                if dest == "0.0.0.0/0":
+                    has_default = True
+                    gw = r.get("gatewayId", "")
+                    nat = r.get("natGatewayId", "")
+                    if gw and gw.startswith("igw-"):
+                        has_igw = True
+                    elif nat and nat.startswith("nat-"):
+                        has_nat = True
+
+            if has_igw:
+                tier = "Public"
+            elif has_nat or has_default:
+                tier = "Private"
+            else:
+                tier = "Isolated"
+
+            # Map associated subnets
+            assocs = cfg.get("associations",
+                             cfg.get("routeTableAssociationSet", []))
+            for a in assocs:
+                sid = a.get("subnetId", "")
+                if sid:
+                    subnet_tier[sid] = tier
+                elif a.get("main", False):
+                    # Main route table — serves as default for unassociated subs
+                    subnet_tier["_main"] = tier
+        return subnet_tier
+
     def get_subnets_for_vpc(self, vpc_id):
+        tier_map = self._build_subnet_tier_map(vpc_id)
+        default_tier = tier_map.get("_main", "Private")
         subnets = []
         for item in self.by_type["AWS::EC2::Subnet"]:
             cfg = item.get("configuration", {})
             if cfg.get("vpcId") == vpc_id:
                 tags = item.get("tags", {})
-                tier = tags.get("Tier", "Private")
-                # Also detect public by mapPublicIpOnLaunch
-                if cfg.get("mapPublicIpOnLaunch"):
-                    tier = "Public"
+                sid = item["resourceId"]
+
+                # Priority: explicit Tier tag > route table > name hint > default
+                tier = tags.get("Tier", "")
+                if not tier:
+                    tier = tier_map.get(sid, "")
+                if not tier:
+                    # Heuristic: infer from Name tag
+                    name = tags.get("Name", "").lower()
+                    if "public" in name:
+                        tier = "Public"
+                    elif "isolated" in name or "db" in name or "data" in name:
+                        tier = "Isolated"
+                    elif "private" in name:
+                        tier = "Private"
+                if not tier:
+                    # mapPublicIpOnLaunch hint
+                    if cfg.get("mapPublicIpOnLaunch"):
+                        tier = "Public"
+                if not tier:
+                    tier = default_tier
+
                 subnets.append({
-                    "id": item["resourceId"],
-                    "name": tags.get("Name", item["resourceId"]),
+                    "id": sid,
+                    "name": tags.get("Name", sid),
                     "cidr": cfg.get("cidrBlock", ""),
                     "az": cfg.get("availabilityZone", ""),
                     "tier": tier,
@@ -331,20 +398,52 @@ class AWSConfigParser:
                     })
         return connections
 
-    def get_waf_for_alb(self, alb_arn):
-        """Get WAF WebACL associated with an ALB."""
+    def get_internet_facing_sgs(self):
+        """Return SGs that allow inbound from 0.0.0.0/0 (internet-facing).
+
+        Returns list of dicts:
+          { "sg_id": str, "port": int|str, "protocol": str }
+        """
+        results = []
+        for item in self.by_type["AWS::EC2::SecurityGroup"]:
+            cfg = item.get("configuration", {})
+            sg_id = cfg.get("groupId", item["resourceId"])
+            for rule in cfg.get("ipPermissions", []):
+                ip_ranges = rule.get("ipRanges", [])
+                ip_ranges = self._normalize_ip_ranges(ip_ranges)
+                for ip_range in ip_ranges:
+                    cidr = ip_range.get("cidrIp", "")
+                    if cidr == "0.0.0.0/0":
+                        results.append({
+                            "sg_id": sg_id,
+                            "port": rule.get("fromPort", ""),
+                            "protocol": rule.get("ipProtocol", ""),
+                        })
+        return results
+
+    def get_waf_for_alb(self, alb_id_or_arn):
+        """Get WAF WebACL associated with an ALB.
+
+        Accepts ALB id (short) or full ARN.  Checks both
+        'associatedResources' and '_associated_resources' keys,
+        and also tries partial match for short IDs.
+        """
         for item in self.by_type["AWS::WAFv2::WebACL"]:
             cfg = item.get("configuration", {})
-            associated = cfg.get("associatedResources", [])
-            if alb_arn in associated:
-                rules = cfg.get("rules", [])
-                rule_names = [r.get("name", "") for r in rules[:3]]  # top 3
-                return {
-                    "id": item["resourceId"],
-                    "name": cfg.get("name", ""),
-                    "rules_summary": rule_names,
-                    "rule_count": len(rules),
-                }
+            associated = (cfg.get("associatedResources", [])
+                          + cfg.get("_associated_resources", []))
+            # Check exact match or partial (short ALB id in ARN)
+            for res_arn in associated:
+                if (alb_id_or_arn == res_arn
+                        or alb_id_or_arn in res_arn):
+                    rules = cfg.get("rules", [])
+                    rule_names = [r.get("name", "") for r in rules[:3]]
+                    return {
+                        "id": item["resourceId"],
+                        "name": cfg.get("name", ""),
+                        "rules_summary": rule_names,
+                        "rule_count": len(rules),
+                    }
         return None
 
     def get_s3_buckets(self):
