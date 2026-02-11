@@ -72,6 +72,7 @@ class C:
     ARROW_INET = RGBColor(0x00, 0x73, 0xBB)
     ARROW_AWS  = RGBColor(0xED, 0x7D, 0x1C)
     ARROW_GRAY = RGBColor(0x88, 0x88, 0x88)
+    ARROW_PEER = RGBColor(0x00, 0x96, 0x88)
 
     TEXT   = RGBColor(0x33, 0x33, 0x33)
     TEXT_G = RGBColor(0x77, 0x77, 0x77)
@@ -135,6 +136,9 @@ class DiagramV2:
         ct_trails = self.p.get_cloudtrail_trails()
         cw_alarms = self.p.get_cloudwatch_alarms()
         svc_conns = self.p.get_service_connections()
+        asgs = self.p.get_autoscaling_groups()
+        eb_envs = self.p.get_elasticbeanstalk_environments()
+        peerings = self.p.get_peering_connections()
 
         waf = None
         for a in albs:
@@ -145,6 +149,12 @@ class DiagramV2:
         # Separate Lambda: VPC-attached vs serverless
         lambdas_vpc = [l for l in lambdas if l.get("in_vpc")]
         lambdas_serverless = [l for l in lambdas if not l.get("in_vpc")]
+
+        # Build subnet -> ASG mapping
+        asg_by_subnet = {}  # subnet_id -> asg
+        for asg in asgs:
+            for sid in asg.get("subnet_ids", []):
+                asg_by_subnet[sid] = asg
 
         azs = sorted(set(s["az"] for s in subs if s["az"]))[:2]
         tiers = defaultdict(lambda: defaultdict(list))
@@ -267,10 +277,19 @@ class DiagramV2:
                                        "nat", f"NAT Gateway\n{nat['public_ip']}",
                                        f"nat_{nat['id']}")
 
+                # AutoScaling Group for this subnet
+                pub_asg = asg_by_subnet.get(sub["id"])
+                if pub_asg:
+                    self._ibox(sl, int(pub_x + Inches(1.6)), icon_y,
+                               "autoscaling",
+                               f"Auto Scaling\n{pub_asg['min_size']}-{pub_asg['max_size']}",
+                               f"asg_{pub_asg['id']}")
+
                 # EC2 instances in Public subnet
                 insts = self.p.get_instances_for_subnet(sub["id"])
+                ec2_start = Inches(2.8) if pub_asg else Inches(1.8)
                 for idx, inst in enumerate(insts):
-                    x_off = Inches(1.8) + idx * Inches(1.2)
+                    x_off = ec2_start + idx * Inches(1.2)
                     self._ibox(sl, int(pub_x + x_off), icon_y,
                                "ec2", f"EC2\n{inst['name']}",
                                f"ec2_{inst['id']}")
@@ -287,6 +306,15 @@ class DiagramV2:
                 icon_y = int(sub_y + sub_h / 2 - Inches(0.35))
                 x_cursor = Inches(0.5)
 
+                # AutoScaling Group for this subnet
+                priv_asg = asg_by_subnet.get(sub["id"])
+                if priv_asg:
+                    self._ibox(sl, int(priv_x + x_cursor), icon_y,
+                               "autoscaling",
+                               f"Auto Scaling\n{priv_asg['min_size']}-{priv_asg['max_size']}",
+                               f"asg_{priv_asg['id']}")
+                    x_cursor += Inches(1.5)
+
                 # EC2 instances
                 insts = self.p.get_instances_for_subnet(sub["id"])
                 for idx, inst in enumerate(insts):
@@ -294,6 +322,15 @@ class DiagramV2:
                                "ec2", f"EC2\n{inst['name']}",
                                f"ec2_{inst['id']}")
                     x_cursor += Inches(1.5)
+
+                # ElasticBeanstalk environments (place in first AZ only)
+                if ai == 0:
+                    for eb in eb_envs:
+                        self._ibox(sl, int(priv_x + x_cursor), icon_y,
+                                   "elasticbeanstalk",
+                                   f"Beanstalk\n{eb['name'][:12]}",
+                                   f"eb_{eb['id']}")
+                        x_cursor += Inches(1.5)
 
                 # ECS Services in this subnet
                 for svc in ecs_services:
@@ -416,19 +453,34 @@ class DiagramV2:
                 self._ibox(sl, int(vx + Inches(0.2) + svc_gap * idx), svless_y,
                            icon, label, key, nobg=True)
 
+        # ===== VPC Peering (right side of Cloud box) =====
+        if peerings:
+            peer_x = int(cx + cw + Inches(0.15))
+            peer_y = int(vy + vh / 2 - Inches(0.24))
+            for pi, peer in enumerate(peerings):
+                # Show the peer VPC that is NOT the current one
+                if peer["requester_vpc"] == vpc["id"]:
+                    peer_label = f"VPC Peering\n{peer['accepter_cidr']}"
+                else:
+                    peer_label = f"VPC Peering\n{peer['requester_cidr']}"
+                self._ibox(sl, peer_x, int(peer_y + pi * Inches(1.0)),
+                           "vpc_icon", peer_label,
+                           f"peering_{peer['id']}", nobg=True)
+
         # ===== Legend =====
         self._legend(sl, Inches(0.15), Inches(7.5))
 
         # ===== Arrows =====
         self._draw_arrows(sl, albs, nats, rdss, igw, sg_conns, s3s, waf, azs,
                           cf_dists, api_gws, r53_zones, lambdas_serverless,
-                          svc_conns)
+                          svc_conns, peerings, asgs)
 
     # ==========================================================
     # Arrow drawing - same-AZ preferred
     # ==========================================================
     def _draw_arrows(self, sl, albs, nats, rdss, igw, sg_conns, s3s, waf, azs,
-                     cf_dists, api_gws, r53_zones, lambdas_svless, svc_conns):
+                     cf_dists, api_gws, r53_zones, lambdas_svless, svc_conns,
+                     peerings=None, asgs=None):
         sg_map = self.p.build_sg_to_resources_map()
         drawn = set()
 
@@ -602,6 +654,34 @@ class DiagramV2:
                     drawn.add(aid)
                     self._arr(sl, fk, tk, C.ARROW_GRAY, label)
 
+        # ---- VPC Peering arrows (VPC right edge -> Peering box) ----
+        if peerings:
+            for peer in peerings:
+                pk = f"peering_{peer['id']}"
+                if pk in self.pos:
+                    # Draw from nearest resource in VPC toward peering box
+                    # Use any ALB or EC2 as source anchor
+                    src = None
+                    for alb in albs:
+                        ak = f"alb_{alb['id']}"
+                        if ak in self.pos:
+                            src = ak
+                            break
+                    if src:
+                        self._arr(sl, src, pk, C.ARROW_PEER,
+                                  f"Peering\n{peer.get('name', '')[:15]}")
+
+        # ---- ASG -> EC2 (dashed-style conceptual link) ----
+        if asgs:
+            for asg in asgs:
+                ak = f"asg_{asg['id']}"
+                if ak not in self.pos:
+                    continue
+                for inst in asg.get("instances", []):
+                    ek = f"ec2_{inst.get('instanceId', '')}"
+                    if ek in self.pos:
+                        self._arr(sl, ak, ek, C.ARROW_AWS, "")
+
     def _find_pos_key(self, svc_type, svc_id):
         """Find a position key for a service connection."""
         # Direct key match
@@ -740,7 +820,7 @@ class DiagramV2:
     def _legend(self, sl, x, y):
         """Legend box with arrow color meanings."""
         lw = Inches(2.2)
-        lh = Inches(1.1)
+        lh = Inches(1.3)
         self._box(sl, x, y, lw, lh, C.WHITE, RGBColor(0xCC, 0xCC, 0xCC))
         self._txt(sl, x + Inches(0.1), y + Inches(0.05),
                   Inches(1.5), Inches(0.18), "Legend:", 8, True)
@@ -756,6 +836,12 @@ class DiagramV2:
                   "───▶", 7, True, C.ARROW_AWS)
         self._txt(sl, x + Inches(0.48), ly, Inches(1.6), Inches(0.16),
                   "AWS internal traffic", 7)
+
+        ly += Inches(0.2)
+        self._txt(sl, x + Inches(0.1), ly, Inches(0.35), Inches(0.16),
+                  "───▶", 7, True, C.ARROW_PEER)
+        self._txt(sl, x + Inches(0.48), ly, Inches(1.6), Inches(0.16),
+                  "VPC Peering", 7)
 
         ly += Inches(0.2)
         self._txt(sl, x + Inches(0.1), ly, Inches(0.35), Inches(0.16),

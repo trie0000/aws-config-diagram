@@ -762,6 +762,112 @@
           {"routeTableAssociationId": "rtbassoc-priv-db-1c", "subnetId": "subnet-priv-db-1c", "main": false}
         ]
       }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "asg-tabelog-web",
+      "arn": "arn:aws:autoscaling:ap-northeast-1:111122223333:autoScalingGroup:asg-tabelog-web",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::AutoScaling::AutoScalingGroup",
+      "awsRegion": "ap-northeast-1",
+      "tags": {"Name": "Tabelog-Web-ASG"},
+      "relationships": [],
+      "configuration": {
+        "autoScalingGroupName": "tabelog-web-asg",
+        "minSize": 2,
+        "maxSize": 6,
+        "desiredCapacity": 2,
+        "vPCZoneIdentifier": "subnet-pub-web-1a,subnet-pub-web-1c",
+        "loadBalancerNames": [],
+        "targetGroupARNs": ["arn:aws:elasticloadbalancing:ap-northeast-1:111122223333:targetgroup/tabelog-web-tg/xxx"],
+        "instances": [
+          {"instanceId": "i-web-1a", "availabilityZone": "ap-northeast-1a"},
+          {"instanceId": "i-web-1c", "availabilityZone": "ap-northeast-1c"}
+        ]
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "asg-tabelog-app",
+      "arn": "arn:aws:autoscaling:ap-northeast-1:111122223333:autoScalingGroup:asg-tabelog-app",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::AutoScaling::AutoScalingGroup",
+      "awsRegion": "ap-northeast-1",
+      "tags": {"Name": "Tabelog-App-ASG"},
+      "relationships": [],
+      "configuration": {
+        "autoScalingGroupName": "tabelog-app-asg",
+        "minSize": 2,
+        "maxSize": 10,
+        "desiredCapacity": 4,
+        "vPCZoneIdentifier": "subnet-priv-app-1a,subnet-priv-app-1c",
+        "loadBalancerNames": [],
+        "targetGroupARNs": [],
+        "instances": [
+          {"instanceId": "i-app-1a", "availabilityZone": "ap-northeast-1a"},
+          {"instanceId": "i-app-1c", "availabilityZone": "ap-northeast-1c"}
+        ]
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "eb-tabelog-admin",
+      "arn": "arn:aws:elasticbeanstalk:ap-northeast-1:111122223333:environment/tabelog-admin/tabelog-admin-env",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::ElasticBeanstalk::Environment",
+      "awsRegion": "ap-northeast-1",
+      "tags": {"Name": "Tabelog-Admin-EB"},
+      "relationships": [],
+      "configuration": {
+        "environmentName": "tabelog-admin-env",
+        "applicationName": "tabelog-admin",
+        "status": "Ready",
+        "health": "Green",
+        "tier": {"name": "WebServer", "type": "Standard"},
+        "versionLabel": "v1.2.3",
+        "platformArn": "arn:aws:elasticbeanstalk:ap-northeast-1::platform/Ruby 3.2 running on 64bit Amazon Linux 2023"
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "pcx-tabelog-mgmt",
+      "arn": "arn:aws:ec2:ap-northeast-1:111122223333:vpc-peering-connection/pcx-tabelog-mgmt",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::VPCPeeringConnection",
+      "awsRegion": "ap-northeast-1",
+      "tags": {"Name": "Tabelog-Prod-to-Mgmt"},
+      "relationships": [
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is associated with VPC Peering"},
+        {"resourceId": "vpc-tabelog-mgmt", "resourceType": "AWS::EC2::VPC", "name": "Is associated with VPC Peering"}
+      ],
+      "configuration": {
+        "vpcPeeringConnectionId": "pcx-tabelog-mgmt",
+        "requesterVpcInfo": {
+          "vpcId": "vpc-tabelog-prod",
+          "cidrBlock": "10.0.0.0/16",
+          "ownerId": "111122223333",
+          "region": "ap-northeast-1"
+        },
+        "accepterVpcInfo": {
+          "vpcId": "vpc-tabelog-mgmt",
+          "cidrBlock": "172.16.0.0/16",
+          "ownerId": "111122223333",
+          "region": "ap-northeast-1"
+        },
+        "status": {"code": "active", "message": "Active"}
+      }
     }
   ]
 }
