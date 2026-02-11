@@ -1,0 +1,1644 @@
+"""
+generate_diagram.py: AWS Config Snapshot JSON -> External Audit Network Diagram (pptx)
+
+Usage:
+    pip install python-pptx
+    python generate_diagram.py sample_aws_config_snapshot.json
+
+Output:
+    network_diagram.pptx (same directory as input JSON)
+
+Version: 1.0.0
+Last Updated: 2025-02-10
+"""
+
+import json
+import sys
+import os
+from collections import defaultdict
+
+from pptx import Presentation
+from pptx.util import Inches, Pt, Emu
+from pptx.dml.color import RGBColor
+from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+from pptx.enum.shapes import MSO_SHAPE
+
+
+# ============================================================
+# Color Palette
+# ============================================================
+class Colors:
+    # VPC
+    VPC_FILL = RGBColor(0xE8, 0xF5, 0xE9)       # light green
+    VPC_BORDER = RGBColor(0x2E, 0x7D, 0x32)      # dark green
+
+    # Subnet tiers
+    PUBLIC_FILL = RGBColor(0xE3, 0xF2, 0xFD)     # light blue
+    PUBLIC_BORDER = RGBColor(0x15, 0x65, 0xC0)    # dark blue
+    PRIVATE_FILL = RGBColor(0xFD, 0xF0, 0xE0)    # light orange
+    PRIVATE_BORDER = RGBColor(0xE6, 0x51, 0x00)   # dark orange
+    ISOLATED_FILL = RGBColor(0xF3, 0xE5, 0xF5)   # light purple
+    ISOLATED_BORDER = RGBColor(0x6A, 0x1B, 0x9A)  # dark purple
+
+    # Resources
+    IGW_FILL = RGBColor(0xFF, 0xF9, 0xC4)        # yellow
+    IGW_BORDER = RGBColor(0xF5, 0x7F, 0x17)
+    NAT_FILL = RGBColor(0xFF, 0xEC, 0xB3)
+    NAT_BORDER = RGBColor(0xFF, 0x8F, 0x00)
+    ALB_FILL = RGBColor(0xBB, 0xDE, 0xFB)
+    ALB_BORDER = RGBColor(0x0D, 0x47, 0xA1)
+    EC2_FILL = RGBColor(0xFF, 0xCC, 0xBC)
+    EC2_BORDER = RGBColor(0xBF, 0x36, 0x0C)
+    RDS_FILL = RGBColor(0xC5, 0xCA, 0xE9)
+    RDS_BORDER = RGBColor(0x28, 0x35, 0x93)
+
+    # WAF
+    WAF_FILL = RGBColor(0xFF, 0xE0, 0xE0)         # light red/pink
+    WAF_BORDER = RGBColor(0xC6, 0x28, 0x28)       # dark red
+    # S3
+    S3_FILL = RGBColor(0xC8, 0xE6, 0xC9)          # light green
+    S3_BORDER = RGBColor(0x2E, 0x7D, 0x32)        # dark green
+
+    # Arrows
+    ARROW_EXTERNAL = RGBColor(0xFF, 0x00, 0x00)   # red - external access
+    ARROW_INTERNAL = RGBColor(0x33, 0x33, 0x33)   # dark gray
+    ARROW_PEERING = RGBColor(0x00, 0x96, 0x88)    # teal
+
+    # Alert
+    ALERT_RED = RGBColor(0xFF, 0x00, 0x00)
+    TEXT_BLACK = RGBColor(0x00, 0x00, 0x00)
+    TEXT_WHITE = RGBColor(0xFF, 0xFF, 0xFF)
+    TEXT_GRAY = RGBColor(0x66, 0x66, 0x66)
+
+    # Internet
+    INTERNET_FILL = RGBColor(0xE0, 0xE0, 0xE0)
+    INTERNET_BORDER = RGBColor(0x61, 0x61, 0x61)
+
+    # Peering
+    PEERING_FILL = RGBColor(0xB2, 0xDF, 0xDB)
+    PEERING_BORDER = RGBColor(0x00, 0x69, 0x5C)
+
+
+# ============================================================
+# Parse AWS Config Snapshot
+# ============================================================
+class AWSConfigParser:
+    """Parse AWS Config snapshot JSON and extract audit-relevant info."""
+
+    # Resource types relevant for external audit
+    AUDIT_RESOURCE_TYPES = {
+        # Networking
+        "AWS::EC2::VPC",
+        "AWS::EC2::Subnet",
+        "AWS::EC2::InternetGateway",
+        "AWS::EC2::NatGateway",
+        "AWS::EC2::Instance",
+        "AWS::EC2::SecurityGroup",
+        "AWS::EC2::RouteTable",
+        "AWS::EC2::VPCPeeringConnection",
+        "AWS::ElasticLoadBalancingV2::LoadBalancer",
+        "AWS::CloudFront::Distribution",
+        "AWS::ApiGateway::RestApi",
+        "AWS::ApiGatewayV2::Api",
+        "AWS::Route53::HostedZone",
+        # Compute
+        "AWS::Lambda::Function",
+        "AWS::ECS::Cluster",
+        "AWS::ECS::Service",
+        "AWS::ECS::TaskDefinition",
+        "AWS::EKS::Cluster",
+        "AWS::AutoScaling::AutoScalingGroup",
+        # Database / Storage
+        "AWS::RDS::DBInstance",
+        "AWS::DynamoDB::Table",
+        "AWS::ElastiCache::CacheCluster",
+        "AWS::Redshift::Cluster",
+        "AWS::S3::Bucket",
+        # Messaging
+        "AWS::SQS::Queue",
+        "AWS::SNS::Topic",
+        # Security / Monitoring
+        "AWS::WAFv2::WebACL",
+        "AWS::KMS::Key",
+        "AWS::CloudTrail::Trail",
+        "AWS::CloudWatch::Alarm",
+        # Other
+        "AWS::ElasticBeanstalk::Environment",
+    }
+
+    def __init__(self, snapshot_path):
+        with open(snapshot_path, "r", encoding="utf-8") as f:
+            self.data = json.load(f)
+
+        self.items = self.data.get("configurationItems", [])
+        self.by_type = defaultdict(list)
+        self.by_id = {}
+
+        for item in self.items:
+            rt = item.get("resourceType", "")
+            rid = item.get("resourceId", "")
+            if rt in self.AUDIT_RESOURCE_TYPES:
+                self.by_type[rt].append(item)
+                self.by_id[rid] = item
+
+    @staticmethod
+    def _normalize_ip_ranges(ip_ranges):
+        """Handle both formats: ['0.0.0.0/0'] and [{'cidrIp': '0.0.0.0/0'}]"""
+        result = []
+        for item in ip_ranges:
+            if isinstance(item, str):
+                result.append({"cidrIp": item})
+            else:
+                result.append(item)
+        return result
+
+    def get_vpcs(self):
+        vpcs = []
+        for item in self.by_type["AWS::EC2::VPC"]:
+            cfg = item.get("configuration", {})
+            vpcs.append({
+                "id": item["resourceId"],
+                "name": item.get("tags", {}).get("Name", item["resourceId"]),
+                "cidr": cfg.get("cidrBlock", ""),
+                "region": item.get("awsRegion", ""),
+                "is_default": cfg.get("isDefault", False),
+            })
+        return vpcs
+
+    def get_subnets_for_vpc(self, vpc_id):
+        subnets = []
+        for item in self.by_type["AWS::EC2::Subnet"]:
+            cfg = item.get("configuration", {})
+            if cfg.get("vpcId") == vpc_id:
+                tags = item.get("tags", {})
+                tier = tags.get("Tier", "Private")
+                # Also detect public by mapPublicIpOnLaunch
+                if cfg.get("mapPublicIpOnLaunch"):
+                    tier = "Public"
+                subnets.append({
+                    "id": item["resourceId"],
+                    "name": tags.get("Name", item["resourceId"]),
+                    "cidr": cfg.get("cidrBlock", ""),
+                    "az": cfg.get("availabilityZone", ""),
+                    "tier": tier,
+                })
+        return subnets
+
+    def get_igw_for_vpc(self, vpc_id):
+        for item in self.by_type["AWS::EC2::InternetGateway"]:
+            cfg = item.get("configuration", {})
+            for att in cfg.get("attachments", []):
+                if att.get("vpcId") == vpc_id:
+                    return {
+                        "id": item["resourceId"],
+                        "name": item.get("tags", {}).get("Name", item["resourceId"]),
+                    }
+        return None
+
+    def get_nat_gateways_for_vpc(self, vpc_id):
+        nats = []
+        for item in self.by_type["AWS::EC2::NatGateway"]:
+            cfg = item.get("configuration", {})
+            if cfg.get("vpcId") == vpc_id:
+                addrs = cfg.get("natGatewayAddresses", [])
+                public_ip = addrs[0].get("publicIp", "") if addrs else ""
+                nats.append({
+                    "id": item["resourceId"],
+                    "name": item.get("tags", {}).get("Name", item["resourceId"]),
+                    "subnet_id": cfg.get("subnetId", ""),
+                    "public_ip": public_ip,
+                })
+        return nats
+
+    def get_instances_for_subnet(self, subnet_id):
+        instances = []
+        for item in self.by_type["AWS::EC2::Instance"]:
+            cfg = item.get("configuration", {})
+            if cfg.get("subnetId") == subnet_id:
+                tags = item.get("tags", {})
+                instances.append({
+                    "id": item["resourceId"],
+                    "name": tags.get("Name", item["resourceId"]),
+                    "type": cfg.get("instanceType", ""),
+                    "private_ip": cfg.get("privateIpAddress", ""),
+                    "public_ip": cfg.get("publicIpAddress"),
+                    "role": tags.get("Role", ""),
+                    "sg_ids": [sg["groupId"] for sg in cfg.get("securityGroups", [])],
+                })
+        return instances
+
+    def get_albs_for_vpc(self, vpc_id):
+        albs = []
+        for item in self.by_type["AWS::ElasticLoadBalancingV2::LoadBalancer"]:
+            cfg = item.get("configuration", {})
+            if cfg.get("vpcId") == vpc_id:
+                albs.append({
+                    "id": item["resourceId"],
+                    "name": cfg.get("loadBalancerName", item.get("tags", {}).get("Name", "")),
+                    "scheme": cfg.get("scheme", ""),
+                    "type": cfg.get("type", ""),
+                    "dns": cfg.get("dNSName", ""),
+                    "subnet_ids": [az["subnetId"] for az in cfg.get("availabilityZones", [])],
+                    "sg_ids": cfg.get("securityGroups", []),
+                })
+        return albs
+
+    def get_rds_for_vpc(self, vpc_id):
+        dbs = []
+        for item in self.by_type["AWS::RDS::DBInstance"]:
+            cfg = item.get("configuration", {})
+            sg_group = cfg.get("dBSubnetGroup", {})
+            if sg_group.get("vpcId") == vpc_id:
+                subnet_ids = [s["subnetIdentifier"] for s in sg_group.get("subnets", [])]
+                dbs.append({
+                    "id": item["resourceId"],
+                    "name": cfg.get("dBInstanceIdentifier", ""),
+                    "engine": cfg.get("engine", ""),
+                    "instance_class": cfg.get("dBInstanceClass", ""),
+                    "port": cfg.get("endpoint", {}).get("port", ""),
+                    "multi_az": cfg.get("multiAZ", False),
+                    "publicly_accessible": cfg.get("publiclyAccessible", False),
+                    "subnet_ids": subnet_ids,
+                    "sg_ids": [sg["vpcSecurityGroupId"] for sg in cfg.get("vpcSecurityGroups", [])],
+                })
+        return dbs
+
+    def get_security_groups_for_vpc(self, vpc_id):
+        sgs = []
+        for item in self.by_type["AWS::EC2::SecurityGroup"]:
+            cfg = item.get("configuration", {})
+            if cfg.get("vpcId") == vpc_id:
+                sgs.append({
+                    "id": cfg.get("groupId", item["resourceId"]),
+                    "name": cfg.get("groupName", ""),
+                    "description": cfg.get("description", ""),
+                    "ingress": cfg.get("ipPermissions", []),
+                    "egress": cfg.get("ipPermissionsEgress", []),
+                })
+        return sgs
+
+    def get_peering_connections(self):
+        peerings = []
+        for item in self.by_type["AWS::EC2::VPCPeeringConnection"]:
+            cfg = item.get("configuration", {})
+            peerings.append({
+                "id": item["resourceId"],
+                "name": item.get("tags", {}).get("Name", item["resourceId"]),
+                "accepter_vpc": cfg.get("accepterVpcInfo", {}).get("vpcId", ""),
+                "requester_vpc": cfg.get("requesterVpcInfo", {}).get("vpcId", ""),
+                "accepter_cidr": cfg.get("accepterVpcInfo", {}).get("cidrBlock", ""),
+                "requester_cidr": cfg.get("requesterVpcInfo", {}).get("cidrBlock", ""),
+            })
+        return peerings
+
+    def get_external_sg_rules(self, vpc_id):
+        """Extract SG rules that allow 0.0.0.0/0 (external access) - audit critical."""
+        external_rules = []
+        for sg in self.get_security_groups_for_vpc(vpc_id):
+            for rule in sg.get("ingress", []):
+                for ip_range in self._normalize_ip_ranges(rule.get("ipRanges", [])):
+                    if ip_range.get("cidrIp") == "0.0.0.0/0":
+                        external_rules.append({
+                            "sg_id": sg["id"],
+                            "sg_name": sg["name"],
+                            "direction": "INBOUND",
+                            "protocol": rule.get("ipProtocol", ""),
+                            "from_port": rule.get("fromPort", ""),
+                            "to_port": rule.get("toPort", ""),
+                            "source": "0.0.0.0/0",
+                            "description": ip_range.get("description", ""),
+                        })
+        return external_rules
+
+    def get_sg_connections(self):
+        """Extract SG-to-SG references to draw internal traffic flows."""
+        connections = []
+        all_sgs = self.by_type["AWS::EC2::SecurityGroup"]
+        for item in all_sgs:
+            cfg = item.get("configuration", {})
+            sg_id = cfg.get("groupId", item["resourceId"])
+            sg_name = cfg.get("groupName", "")
+            # Ingress: who can talk TO this SG
+            for rule in cfg.get("ipPermissions", []):
+                for pair in rule.get("userIdGroupPairs", []):
+                    connections.append({
+                        "from_sg": pair["groupId"],
+                        "to_sg": sg_id,
+                        "to_sg_name": sg_name,
+                        "port": rule.get("fromPort", ""),
+                        "protocol": rule.get("ipProtocol", ""),
+                        "description": pair.get("description", ""),
+                    })
+        return connections
+
+    def get_waf_for_alb(self, alb_arn):
+        """Get WAF WebACL associated with an ALB."""
+        for item in self.by_type["AWS::WAFv2::WebACL"]:
+            cfg = item.get("configuration", {})
+            associated = cfg.get("associatedResources", [])
+            if alb_arn in associated:
+                rules = cfg.get("rules", [])
+                rule_names = [r.get("name", "") for r in rules[:3]]  # top 3
+                return {
+                    "id": item["resourceId"],
+                    "name": cfg.get("name", ""),
+                    "rules_summary": rule_names,
+                    "rule_count": len(rules),
+                }
+        return None
+
+    def get_s3_buckets(self):
+        """Get S3 buckets."""
+        buckets = []
+        for item in self.by_type["AWS::S3::Bucket"]:
+            cfg = item.get("configuration", {})
+            pub_block = cfg.get("publicAccessBlockConfiguration", {})
+            is_public_blocked = all([
+                pub_block.get("blockPublicAcls", False),
+                pub_block.get("blockPublicPolicy", False),
+            ])
+            buckets.append({
+                "id": item["resourceId"],
+                "name": cfg.get("name", item["resourceId"]),
+                "encrypted": bool(cfg.get("bucketEncryptionConfiguration")),
+                "versioning": cfg.get("versioningConfiguration", {}).get("status", "Disabled"),
+                "public_blocked": is_public_blocked,
+            })
+        return buckets
+
+    # ---- New service parsers ----
+
+    def get_lambda_functions(self):
+        funcs = []
+        for item in self.by_type["AWS::Lambda::Function"]:
+            cfg = item.get("configuration", {})
+            vpc_cfg = cfg.get("vpcConfig", {})
+            funcs.append({
+                "id": item["resourceId"],
+                "name": cfg.get("functionName", item.get("tags", {}).get("Name", item["resourceId"])),
+                "runtime": cfg.get("runtime", ""),
+                "memory": cfg.get("memorySize", ""),
+                "timeout": cfg.get("timeout", ""),
+                "vpc_subnet_ids": vpc_cfg.get("subnetIds", []),
+                "vpc_sg_ids": vpc_cfg.get("securityGroupIds", []),
+                "in_vpc": bool(vpc_cfg.get("subnetIds")),
+            })
+        return funcs
+
+    def get_ecs_clusters(self):
+        clusters = []
+        for item in self.by_type["AWS::ECS::Cluster"]:
+            cfg = item.get("configuration", {})
+            clusters.append({
+                "id": item["resourceId"],
+                "name": cfg.get("clusterName", item.get("tags", {}).get("Name", item["resourceId"])),
+            })
+        return clusters
+
+    def get_ecs_services(self):
+        services = []
+        for item in self.by_type["AWS::ECS::Service"]:
+            cfg = item.get("configuration", {})
+            net_cfg = cfg.get("networkConfiguration", {}).get("awsvpcConfiguration", {})
+            services.append({
+                "id": item["resourceId"],
+                "name": cfg.get("serviceName", item.get("tags", {}).get("Name", item["resourceId"])),
+                "cluster_arn": cfg.get("clusterArn", ""),
+                "launch_type": cfg.get("launchType", ""),
+                "desired_count": cfg.get("desiredCount", 0),
+                "subnet_ids": net_cfg.get("subnets", []),
+                "sg_ids": net_cfg.get("securityGroups", []),
+            })
+        return services
+
+    def get_eks_clusters(self):
+        clusters = []
+        for item in self.by_type["AWS::EKS::Cluster"]:
+            cfg = item.get("configuration", {})
+            vpc_cfg = cfg.get("resourcesVpcConfig", {})
+            clusters.append({
+                "id": item["resourceId"],
+                "name": cfg.get("name", item.get("tags", {}).get("Name", item["resourceId"])),
+                "version": cfg.get("version", ""),
+                "subnet_ids": vpc_cfg.get("subnetIds", []),
+                "sg_ids": vpc_cfg.get("securityGroupIds", []),
+            })
+        return clusters
+
+    def get_autoscaling_groups(self):
+        asgs = []
+        for item in self.by_type["AWS::AutoScaling::AutoScalingGroup"]:
+            cfg = item.get("configuration", {})
+            subnet_str = cfg.get("vPCZoneIdentifier", "")
+            asgs.append({
+                "id": item["resourceId"],
+                "name": cfg.get("autoScalingGroupName", item.get("tags", {}).get("Name", item["resourceId"])),
+                "min_size": cfg.get("minSize", 0),
+                "max_size": cfg.get("maxSize", 0),
+                "desired": cfg.get("desiredCapacity", 0),
+                "subnet_ids": [s for s in subnet_str.split(",") if s] if subnet_str else [],
+            })
+        return asgs
+
+    def get_cloudfront_distributions(self):
+        dists = []
+        for item in self.by_type["AWS::CloudFront::Distribution"]:
+            cfg = item.get("configuration", {})
+            dist_cfg = cfg.get("distributionConfig", cfg)
+            origins = dist_cfg.get("origins", {}).get("items", [])
+            origin_domains = [o.get("domainName", "") for o in origins]
+            dists.append({
+                "id": item["resourceId"],
+                "name": item.get("tags", {}).get("Name", dist_cfg.get("comment", item["resourceId"])),
+                "domain_name": cfg.get("domainName", ""),
+                "origin_domains": origin_domains,
+                "waf_id": dist_cfg.get("webACLId", ""),
+            })
+        return dists
+
+    def get_api_gateways(self):
+        apis = []
+        for item in self.by_type["AWS::ApiGateway::RestApi"]:
+            cfg = item.get("configuration", {})
+            apis.append({
+                "id": item["resourceId"],
+                "name": cfg.get("name", item.get("tags", {}).get("Name", item["resourceId"])),
+                "type": "REST",
+            })
+        for item in self.by_type["AWS::ApiGatewayV2::Api"]:
+            cfg = item.get("configuration", {})
+            apis.append({
+                "id": item["resourceId"],
+                "name": cfg.get("name", item.get("tags", {}).get("Name", item["resourceId"])),
+                "type": cfg.get("protocolType", "HTTP"),
+            })
+        return apis
+
+    def get_route53_hosted_zones(self):
+        zones = []
+        for item in self.by_type["AWS::Route53::HostedZone"]:
+            cfg = item.get("configuration", {})
+            zones.append({
+                "id": item["resourceId"],
+                "name": cfg.get("name", item.get("tags", {}).get("Name", item["resourceId"])),
+                "private": cfg.get("config", {}).get("privateZone", False),
+            })
+        return zones
+
+    def get_dynamodb_tables(self):
+        tables = []
+        for item in self.by_type["AWS::DynamoDB::Table"]:
+            cfg = item.get("configuration", {})
+            tables.append({
+                "id": item["resourceId"],
+                "name": cfg.get("tableName", item.get("tags", {}).get("Name", item["resourceId"])),
+                "status": cfg.get("tableStatus", ""),
+            })
+        return tables
+
+    def get_elasticache_clusters(self):
+        clusters = []
+        for item in self.by_type["AWS::ElastiCache::CacheCluster"]:
+            cfg = item.get("configuration", {})
+            sg_ids = [sg.get("securityGroupId", "") for sg in cfg.get("securityGroups", [])]
+            clusters.append({
+                "id": item["resourceId"],
+                "name": cfg.get("cacheClusterId", item.get("tags", {}).get("Name", item["resourceId"])),
+                "engine": cfg.get("engine", ""),
+                "node_type": cfg.get("cacheNodeType", ""),
+                "sg_ids": sg_ids,
+            })
+        return clusters
+
+    def get_redshift_clusters(self):
+        clusters = []
+        for item in self.by_type["AWS::Redshift::Cluster"]:
+            cfg = item.get("configuration", {})
+            sg_ids = [sg.get("vpcSecurityGroupId", "") for sg in cfg.get("vpcSecurityGroups", [])]
+            clusters.append({
+                "id": item["resourceId"],
+                "name": cfg.get("clusterIdentifier", item.get("tags", {}).get("Name", item["resourceId"])),
+                "node_type": cfg.get("nodeType", ""),
+                "sg_ids": sg_ids,
+            })
+        return clusters
+
+    def get_sqs_queues(self):
+        queues = []
+        for item in self.by_type["AWS::SQS::Queue"]:
+            cfg = item.get("configuration", {})
+            name = cfg.get("queueName", "")
+            if not name:
+                # Extract from ARN
+                arn = item.get("arn", "")
+                name = arn.split(":")[-1] if arn else item["resourceId"]
+            queues.append({
+                "id": item["resourceId"],
+                "name": name,
+                "fifo": cfg.get("fifoQueue", False),
+            })
+        return queues
+
+    def get_sns_topics(self):
+        topics = []
+        for item in self.by_type["AWS::SNS::Topic"]:
+            cfg = item.get("configuration", {})
+            arn = cfg.get("topicArn", item.get("arn", ""))
+            name = arn.split(":")[-1] if arn else item["resourceId"]
+            topics.append({
+                "id": item["resourceId"],
+                "name": name,
+            })
+        return topics
+
+    def get_kms_keys(self):
+        keys = []
+        for item in self.by_type["AWS::KMS::Key"]:
+            cfg = item.get("configuration", {})
+            keys.append({
+                "id": item["resourceId"],
+                "name": cfg.get("description", item.get("tags", {}).get("Name", item["resourceId"])),
+                "state": cfg.get("keyState", ""),
+            })
+        return keys
+
+    def get_cloudtrail_trails(self):
+        trails = []
+        for item in self.by_type["AWS::CloudTrail::Trail"]:
+            cfg = item.get("configuration", {})
+            trails.append({
+                "id": item["resourceId"],
+                "name": cfg.get("name", item.get("tags", {}).get("Name", item["resourceId"])),
+                "s3_bucket": cfg.get("s3BucketName", ""),
+                "is_logging": cfg.get("isLogging", False),
+            })
+        return trails
+
+    def get_cloudwatch_alarms(self):
+        alarms = []
+        for item in self.by_type["AWS::CloudWatch::Alarm"]:
+            cfg = item.get("configuration", {})
+            alarms.append({
+                "id": item["resourceId"],
+                "name": cfg.get("alarmName", item.get("tags", {}).get("Name", item["resourceId"])),
+                "metric": cfg.get("metricName", ""),
+                "namespace": cfg.get("namespace", ""),
+            })
+        return alarms
+
+    def get_elasticbeanstalk_environments(self):
+        envs = []
+        for item in self.by_type["AWS::ElasticBeanstalk::Environment"]:
+            cfg = item.get("configuration", {})
+            envs.append({
+                "id": item["resourceId"],
+                "name": cfg.get("environmentName", item.get("tags", {}).get("Name", item["resourceId"])),
+                "app_name": cfg.get("applicationName", ""),
+                "status": cfg.get("status", ""),
+            })
+        return envs
+
+    def get_service_connections(self):
+        """Infer connections for services that don't use Security Groups."""
+        connections = []
+
+        # CloudFront -> ALB/S3 (origin domains)
+        alb_dns_map = {}
+        for item in self.by_type["AWS::ElasticLoadBalancingV2::LoadBalancer"]:
+            cfg = item.get("configuration", {})
+            dns = cfg.get("dNSName", "")
+            if dns:
+                alb_dns_map[dns.lower()] = item["resourceId"]
+
+        for dist in self.get_cloudfront_distributions():
+            for origin in dist.get("origin_domains", []):
+                origin_l = origin.lower()
+                if "elb.amazonaws.com" in origin_l:
+                    for dns, alb_id in alb_dns_map.items():
+                        if dns in origin_l or origin_l in dns:
+                            connections.append({
+                                "from_type": "cloudfront", "from_id": dist["id"],
+                                "to_type": "alb", "to_id": alb_id,
+                                "label": "HTTPS",
+                            })
+                elif "s3" in origin_l:
+                    connections.append({
+                        "from_type": "cloudfront", "from_id": dist["id"],
+                        "to_type": "s3", "to_id": origin,
+                        "label": "",
+                    })
+
+        # CloudTrail -> S3
+        for trail in self.get_cloudtrail_trails():
+            if trail.get("s3_bucket"):
+                connections.append({
+                    "from_type": "cloudtrail", "from_id": trail["id"],
+                    "to_type": "s3", "to_id": trail["s3_bucket"],
+                    "label": "Logs",
+                })
+
+        return connections
+
+    def build_sg_to_resources_map(self):
+        """Build mapping: sg_id -> list of (resource_type, resource_id, resource_name)."""
+        sg_map = defaultdict(list)
+
+        # EC2 instances
+        for item in self.by_type["AWS::EC2::Instance"]:
+            cfg = item.get("configuration", {})
+            tags = item.get("tags", {})
+            for sg in cfg.get("securityGroups", []):
+                sg_map[sg["groupId"]].append({
+                    "type": "EC2",
+                    "id": item["resourceId"],
+                    "name": tags.get("Name", item["resourceId"]),
+                    "prefix": "ec2_",
+                })
+
+        # ALBs
+        for item in self.by_type["AWS::ElasticLoadBalancingV2::LoadBalancer"]:
+            cfg = item.get("configuration", {})
+            for sg_id in cfg.get("securityGroups", []):
+                sg_map[sg_id].append({
+                    "type": "ALB",
+                    "id": item["resourceId"],
+                    "name": cfg.get("loadBalancerName", ""),
+                    "prefix": "alb_",
+                })
+
+        # RDS
+        for item in self.by_type["AWS::RDS::DBInstance"]:
+            cfg = item.get("configuration", {})
+            for sg in cfg.get("vpcSecurityGroups", []):
+                sg_map[sg["vpcSecurityGroupId"]].append({
+                    "type": "RDS",
+                    "id": item["resourceId"],
+                    "name": cfg.get("dBInstanceIdentifier", ""),
+                    "prefix": "rds_",
+                })
+
+        # Lambda (VPC-attached only)
+        for item in self.by_type["AWS::Lambda::Function"]:
+            cfg = item.get("configuration", {})
+            vpc_cfg = cfg.get("vpcConfig", {})
+            for sg_id in vpc_cfg.get("securityGroupIds", []):
+                sg_map[sg_id].append({
+                    "type": "Lambda",
+                    "id": item["resourceId"],
+                    "name": cfg.get("functionName", ""),
+                    "prefix": "lambda_",
+                })
+
+        # ECS Services (awsvpc)
+        for item in self.by_type["AWS::ECS::Service"]:
+            cfg = item.get("configuration", {})
+            net_cfg = cfg.get("networkConfiguration", {}).get("awsvpcConfiguration", {})
+            for sg_id in net_cfg.get("securityGroups", []):
+                sg_map[sg_id].append({
+                    "type": "ECS",
+                    "id": item["resourceId"],
+                    "name": cfg.get("serviceName", ""),
+                    "prefix": "ecs_",
+                })
+
+        # EKS
+        for item in self.by_type["AWS::EKS::Cluster"]:
+            cfg = item.get("configuration", {})
+            vpc_cfg = cfg.get("resourcesVpcConfig", {})
+            for sg_id in vpc_cfg.get("securityGroupIds", []):
+                sg_map[sg_id].append({
+                    "type": "EKS",
+                    "id": item["resourceId"],
+                    "name": cfg.get("name", ""),
+                    "prefix": "eks_",
+                })
+
+        # ElastiCache
+        for item in self.by_type["AWS::ElastiCache::CacheCluster"]:
+            cfg = item.get("configuration", {})
+            for sg in cfg.get("securityGroups", []):
+                sg_map[sg.get("securityGroupId", "")].append({
+                    "type": "ElastiCache",
+                    "id": item["resourceId"],
+                    "name": cfg.get("cacheClusterId", ""),
+                    "prefix": "cache_",
+                })
+
+        # Redshift
+        for item in self.by_type["AWS::Redshift::Cluster"]:
+            cfg = item.get("configuration", {})
+            for sg in cfg.get("vpcSecurityGroups", []):
+                sg_map[sg.get("vpcSecurityGroupId", "")].append({
+                    "type": "Redshift",
+                    "id": item["resourceId"],
+                    "name": cfg.get("clusterIdentifier", ""),
+                    "prefix": "redshift_",
+                })
+
+        return sg_map
+
+
+# ============================================================
+# PPTX Diagram Generator
+# ============================================================
+class DiagramGenerator:
+    """Generate PowerPoint network diagram from parsed AWS Config data."""
+
+    def __init__(self, parser: AWSConfigParser):
+        self.parser = parser
+        self.prs = Presentation()
+        # Widescreen 16:9
+        self.prs.slide_width = Inches(13.333)
+        self.prs.slide_height = Inches(7.5)
+
+        # Layout tracking
+        self.shape_positions = {}  # resource_id -> (center_x, center_y)
+
+    def generate(self, output_path):
+        """Main generation entry point."""
+        vpcs = self.parser.get_vpcs()
+        peerings = self.parser.get_peering_connections()
+
+        # Slide 1: Overview diagram
+        self._create_overview_slide(vpcs, peerings)
+
+        # Slide 2: Security Group rules (audit detail)
+        self._create_sg_detail_slide(vpcs)
+
+        # Slide 3: Traffic flow summary
+        self._create_traffic_flow_slide(vpcs)
+
+        self.prs.save(output_path)
+        print(f"Diagram saved: {output_path}")
+
+    # ----------------------------------------------------------
+    # Slide 1: Overview
+    # ----------------------------------------------------------
+    def _create_overview_slide(self, vpcs, peerings):
+        slide = self.prs.slides.add_slide(self.prs.slide_layouts[6])  # blank
+
+        # Title
+        self._add_text_box(slide, Inches(0.3), Inches(0.15), Inches(10), Inches(0.5),
+                           "AWS Network Architecture - External Audit Overview",
+                           font_size=20, bold=True)
+
+        # ---- Internet (top center) ----
+        inet_x, inet_y = Inches(4.8), Inches(0.7)
+        inet_w, inet_h = Inches(2.0), Inches(0.5)
+        self._add_rounded_rect(slide, inet_x, inet_y, inet_w, inet_h,
+                                "Internet", Colors.INTERNET_FILL, Colors.INTERNET_BORDER,
+                                font_size=11, bold=True)
+        self.shape_positions["internet"] = (int(inet_x + inet_w / 2), int(inet_y + inet_h / 2))
+
+        # ---- WAF (between Internet and VPC) ----
+        waf_drawn = False
+        # Find ALBs to check for WAF association
+        for vpc in vpcs:
+            for alb in self.parser.get_albs_for_vpc(vpc["id"]):
+                waf = self.parser.get_waf_for_alb(alb["id"])
+                if waf:
+                    waf_x, waf_y = Inches(4.5), Inches(1.35)
+                    waf_w, waf_h = Inches(2.6), Inches(0.55)
+                    rules_text = f"WAF: {waf['name']}\nRules: {waf['rule_count']}"
+                    self._add_rounded_rect(slide, waf_x, waf_y, waf_w, waf_h,
+                                            rules_text, Colors.WAF_FILL, Colors.WAF_BORDER,
+                                            font_size=8, bold=True)
+                    self.shape_positions["waf"] = (int(waf_x + waf_w / 2), int(waf_y + waf_h / 2))
+
+                    # Internet -> WAF arrow
+                    self._add_arrow(slide,
+                                    inet_x + inet_w / 2, inet_y + inet_h,
+                                    waf_x + waf_w / 2, waf_y,
+                                    Colors.ARROW_EXTERNAL, width=Pt(2.5),
+                                    label=":443 / :80")
+                    waf_drawn = True
+                    break
+            if waf_drawn:
+                break
+
+        # ---- S3 (right side, outside VPC) ----
+        s3_buckets = self.parser.get_s3_buckets()
+        if s3_buckets:
+            s3_x, s3_y = Inches(11.3), Inches(3.5)
+            s3_w, s3_h = Inches(1.7), Inches(1.0)
+            s3_texts = []
+            for b in s3_buckets:
+                enc = "KMS" if b["encrypted"] else "None"
+                s3_texts.append(f"S3: {b['name']}\nEnc: {enc}\nVer: {b['versioning']}")
+            s3_label = "\n".join(s3_texts)
+            self._add_rounded_rect(slide, s3_x, s3_y, s3_w, s3_h,
+                                    s3_label, Colors.S3_FILL, Colors.S3_BORDER,
+                                    font_size=7, bold=False)
+            self.shape_positions["s3"] = (int(s3_x + s3_w / 2), int(s3_y + s3_h / 2))
+
+        # ---- VPCs ----
+        vpc_start_y = Inches(2.1)
+        vpc_gap = Inches(0.4)
+        # Reserve right side for S3 if present
+        total_vpc_width = Inches(10.7) if s3_buckets else Inches(12.5)
+
+        if len(vpcs) == 1:
+            vpc_width = total_vpc_width
+            vpc_positions = [(Inches(0.4), vpc_start_y)]
+        else:
+            vpc_width = (total_vpc_width - vpc_gap * (len(vpcs) - 1)) / len(vpcs)
+            vpc_positions = []
+            for i in range(len(vpcs)):
+                x = Inches(0.4) + i * (vpc_width + vpc_gap)
+                vpc_positions.append((x, vpc_start_y))
+
+        for i, vpc in enumerate(vpcs):
+            vx, vy = vpc_positions[i]
+            self._draw_vpc(slide, vpc, vx, vy, vpc_width, Inches(5.2))
+
+        # ---- Peering connections ----
+        for peer in peerings:
+            self._draw_peering_arrow(slide, peer, vpcs, vpc_positions, vpc_width)
+
+        # ---- WAF -> IGW or IGW -> Internet arrow ----
+        for i, vpc in enumerate(vpcs):
+            igw = self.parser.get_igw_for_vpc(vpc["id"])
+            if igw:
+                igw_key = f"igw_{igw['id']}"
+                if igw_key in self.shape_positions:
+                    sx, sy = self.shape_positions[igw_key]
+                    if waf_drawn and "waf" in self.shape_positions:
+                        # WAF -> IGW arrow
+                        wx, wy = self.shape_positions["waf"]
+                        self._add_arrow(slide, wx, wy + Inches(0.28),
+                                        sx, sy - Inches(0.28),
+                                        Colors.ARROW_EXTERNAL, width=Pt(2))
+                    else:
+                        # Direct IGW -> Internet
+                        ex, ey = self.shape_positions["internet"]
+                        self._add_arrow(slide, sx, sy - Inches(0.15),
+                                        ex, ey + Inches(0.3),
+                                        Colors.ARROW_EXTERNAL, width=Pt(2.5),
+                                        label=":443 / :80")
+
+        # ---- Internal traffic arrows (SG based) ----
+        self._draw_traffic_arrows(slide)
+
+        # ---- NAT -> Internet outbound arrow ----
+        for vpc in vpcs:
+            for nat in self.parser.get_nat_gateways_for_vpc(vpc["id"]):
+                nat_key = f"nat_{nat['id']}"
+                if nat_key in self.shape_positions:
+                    nx, ny = self.shape_positions[nat_key]
+                    ix, iy = self.shape_positions["internet"]
+                    self._add_arrow(slide, nx, ny - Inches(0.28),
+                                    ix + Inches(0.8), iy + Inches(0.25),
+                                    RGBColor(0xFF, 0x8F, 0x00), width=Pt(1.5),
+                                    label="Outbound :443")
+
+        # ---- App -> S3 arrow ----
+        if s3_buckets and "s3" in self.shape_positions:
+            # Find any App server to draw arrow from
+            for vpc in vpcs:
+                subnets = self.parser.get_subnets_for_vpc(vpc["id"])
+                for sub in subnets:
+                    instances = self.parser.get_instances_for_subnet(sub["id"])
+                    for inst in instances:
+                        if inst.get("role") == "AppServer":
+                            app_key = f"ec2_{inst['id']}"
+                            if app_key in self.shape_positions:
+                                ax, ay = self.shape_positions[app_key]
+                                s3x, s3y = self.shape_positions["s3"]
+                                self._add_arrow(slide,
+                                                ax + Inches(0.75), ay,
+                                                s3x - Inches(0.1), s3y,
+                                                Colors.S3_BORDER, width=Pt(1.5),
+                                                label="S3 API :443")
+                                break  # one arrow is enough
+                    else:
+                        continue
+                    break
+
+        # ---- Legend ----
+        legend_x = Inches(0.3) if s3_buckets else Inches(10.5)
+        legend_y = Inches(0.15) if s3_buckets else Inches(0.15)
+        self._add_legend(slide, Inches(10.5), Inches(0.15))
+
+    def _draw_vpc(self, slide, vpc, x, y, w, h):
+        """Draw a VPC with AZ-column layout. Traffic flows top→bottom, left→right.
+
+        Layout strategy:
+        - Left column: Infrastructure (IGW, NAT) — gateway services
+        - AZ columns: AZ-a, AZ-c — per-AZ resources (EC2 instances)
+        - Cross-AZ resources (ALB, RDS): centered spanning all AZ columns
+        - Tiers ordered top→bottom: Public → Private → Isolated
+        """
+        # VPC box
+        self._add_rounded_rect(
+            slide, x, y, w, h,
+            "", Colors.VPC_FILL, Colors.VPC_BORDER, font_size=10)
+
+        # VPC header
+        header = f"VPC: {vpc['name']}  |  {vpc['cidr']}  |  {vpc['region']}"
+        self._add_text_box(slide, x + Inches(0.15), y + Inches(0.05),
+                           w - Inches(0.3), Inches(0.35),
+                           header, font_size=9, bold=True,
+                           color=Colors.VPC_BORDER)
+
+        # ---- Collect all data ----
+        subnets = self.parser.get_subnets_for_vpc(vpc["id"])
+        igw = self.parser.get_igw_for_vpc(vpc["id"])
+        nats = self.parser.get_nat_gateways_for_vpc(vpc["id"])
+        albs = self.parser.get_albs_for_vpc(vpc["id"])
+        rds_list = self.parser.get_rds_for_vpc(vpc["id"])
+
+        # Group subnets by tier
+        tiers = defaultdict(list)
+        for s in subnets:
+            tiers[s["tier"]].append(s)
+
+        # Discover AZ columns from subnets
+        az_set = sorted(set(s["az"] for s in subnets if s["az"]))
+        if not az_set:
+            az_set = ["default"]
+        num_az = len(az_set)
+        az_index = {az: i for i, az in enumerate(az_set)}
+
+        # ---- Layout dimensions ----
+        margin = Inches(0.12)
+        tier_order = ["Public", "Private", "Isolated"]
+        active_tiers = [t for t in tier_order if t in tiers]
+        tier_count = len(active_tiers)
+        if tier_count == 0:
+            return
+
+        # Reserve left column for infra (IGW, NAT) — visible in all tiers
+        infra_col_w = Inches(1.5)
+        has_infra = bool(igw or nats)
+
+        # Tier area (inner content area of VPC)
+        tier_area_x = x + margin
+        tier_area_y = y + Inches(0.42)
+        tier_area_w = w - margin * 2
+        tier_area_h = h - Inches(0.52)
+
+        tier_gap = Inches(0.08)
+        tier_h = (tier_area_h - tier_gap * (tier_count - 1)) / tier_count
+
+        # AZ column area (right of infra column)
+        if has_infra:
+            az_area_x = tier_area_x + infra_col_w + Inches(0.08)
+            az_area_w = tier_area_w - infra_col_w - Inches(0.08)
+        else:
+            az_area_x = tier_area_x + Inches(0.1)
+            az_area_w = tier_area_w - Inches(0.2)
+
+        az_col_gap = Inches(0.15)
+        az_col_w = int((az_area_w - az_col_gap * (num_az - 1)) / num_az) if num_az > 0 else az_area_w
+
+        res_w = min(Inches(1.9), int(az_col_w - Inches(0.15)))
+        res_h = Inches(0.6)
+        # Wider resource box for cross-AZ (ALB, RDS)
+        cross_az_w = min(Inches(2.4), int(az_area_w - Inches(0.2)))
+
+        # ---- AZ column headers ----
+        for i, az in enumerate(az_set):
+            az_short = az.split("-")[-1] if "-" in az else az  # e.g. "1a"
+            hdr_x = int(az_area_x + i * (az_col_w + az_col_gap))
+            self._add_text_box(slide, hdr_x, tier_area_y - Inches(0.02),
+                               az_col_w, Inches(0.2),
+                               f"AZ: {az_short}", font_size=7, bold=True,
+                               color=Colors.TEXT_GRAY, align=PP_ALIGN.CENTER)
+
+        # ---- Draw each tier ----
+        current_y = tier_area_y + Inches(0.15)
+
+        for tier in active_tiers:
+            tier_subnets = tiers[tier]
+            fill, border = self._tier_colors(tier)
+
+            # Tier container
+            self._add_rounded_rect(
+                slide, tier_area_x, current_y,
+                tier_area_w, tier_h,
+                "", fill, border, font_size=8)
+
+            # Tier label
+            tier_label = f"{tier} Subnet"
+            if tier == "Public":
+                tier_label += "  [EXTERNAL FACING]"
+            self._add_text_box(
+                slide, tier_area_x + Inches(0.08), current_y + Inches(0.02),
+                tier_area_w - Inches(0.2), Inches(0.2),
+                tier_label, font_size=7, bold=True, color=border)
+
+            res_start_y = current_y + Inches(0.28)
+
+            # ---- Infrastructure column (left, only in Public tier) ----
+            if tier == "Public" and has_infra:
+                infra_y = res_start_y
+                infra_x = int(tier_area_x + Inches(0.08))
+                infra_item_w = int(infra_col_w - Inches(0.16))
+
+                if igw:
+                    self._add_rounded_rect(
+                        slide, infra_x, infra_y, infra_item_w, Inches(0.45),
+                        f"IGW\n{igw['name']}", Colors.IGW_FILL, Colors.IGW_BORDER,
+                        font_size=7, bold=True)
+                    self.shape_positions[f"igw_{igw['id']}"] = (
+                        int(infra_x + infra_item_w / 2), int(infra_y + Inches(0.225)))
+                    infra_y += Inches(0.52)
+
+                for nat in nats:
+                    label = f"NAT GW\n{nat['public_ip']}"
+                    self._add_rounded_rect(
+                        slide, infra_x, infra_y, infra_item_w, Inches(0.45),
+                        label, Colors.NAT_FILL, Colors.NAT_BORDER,
+                        font_size=7, bold=True)
+                    self.shape_positions[f"nat_{nat['id']}"] = (
+                        int(infra_x + infra_item_w / 2), int(infra_y + Inches(0.225)))
+                    infra_y += Inches(0.52)
+
+            # ---- Cross-AZ resources (ALB, RDS) - centered in AZ area ----
+            cross_az_items = []  # (label, rid, fill, border, prefix)
+
+            if tier == "Public":
+                for alb in albs:
+                    if alb["scheme"] == "internet-facing":
+                        label = f"ALB: {alb['name']}  (internet-facing, spans AZs)"
+                        cross_az_items.append((label, alb["id"],
+                                               Colors.ALB_FILL, Colors.ALB_BORDER, "alb_"))
+
+            if tier in ("Isolated", "Private"):
+                for db in rds_list:
+                    tier_subnet_ids = {s["id"] for s in tier_subnets}
+                    if tier_subnet_ids & set(db["subnet_ids"]):
+                        multi = " (Multi-AZ)" if db["multi_az"] else ""
+                        label = f"RDS {db['engine']}{multi}\n{db['name']}  |  Port: {db['port']}"
+                        cross_az_items.append((label, db["id"],
+                                               Colors.RDS_FILL, Colors.RDS_BORDER, "rds_"))
+
+            # Draw cross-AZ items centered
+            cross_y = res_start_y
+            cross_center_x = int(az_area_x + az_area_w / 2 - cross_az_w / 2)
+            for label, rid, cfill, cborder, prefix in cross_az_items:
+                self._add_rounded_rect(
+                    slide, cross_center_x, cross_y, cross_az_w, res_h,
+                    label, cfill, cborder, font_size=7, bold=True)
+                self.shape_positions[f"{prefix}{rid}"] = (
+                    int(cross_center_x + cross_az_w / 2), int(cross_y + res_h / 2))
+                cross_y += res_h + Inches(0.06)
+
+            # ---- AZ-aligned resources (per-AZ EC2 instances) ----
+            # Start after cross-AZ items
+            per_az_start_y = cross_y if cross_az_items else res_start_y
+
+            for col_idx in range(num_az):
+                col_x = int(az_area_x + col_idx * (az_col_w + az_col_gap))
+                res_center_x = int(col_x + az_col_w / 2 - res_w / 2)
+                ry = per_az_start_y
+
+                # EC2 instances for this AZ in this tier
+                for sub in tier_subnets:
+                    if az_index.get(sub["az"], 0) != col_idx:
+                        continue
+                    instances = self.parser.get_instances_for_subnet(sub["id"])
+                    for inst in instances:
+                        role = f" ({inst['role']})" if inst['role'] else ""
+                        label = f"EC2{role}\n{inst['name']}\n{inst['private_ip']}"
+                        self._add_rounded_rect(
+                            slide, res_center_x, ry, res_w, res_h,
+                            label, Colors.EC2_FILL, Colors.EC2_BORDER, font_size=7)
+                        self.shape_positions[f"ec2_{inst['id']}"] = (
+                            int(res_center_x + res_w / 2), int(ry + res_h / 2))
+                        ry += res_h + Inches(0.06)
+
+            current_y += tier_h + tier_gap
+
+    def _draw_peering_arrow(self, slide, peer, vpcs, vpc_positions, vpc_width):
+        """Draw VPC Peering connection arrow."""
+        # Find positions of accepter and requester VPCs
+        acc_idx = req_idx = None
+        for i, vpc in enumerate(vpcs):
+            if vpc["id"] == peer["accepter_vpc"]:
+                acc_idx = i
+            if vpc["id"] == peer["requester_vpc"]:
+                req_idx = i
+
+        if acc_idx is not None and req_idx is not None:
+            ax, ay = vpc_positions[acc_idx]
+            rx, ry = vpc_positions[req_idx]
+
+            # Arrow from right edge of left VPC to left edge of right VPC
+            if acc_idx < req_idx:
+                sx = ax + vpc_width
+                ex = rx
+            else:
+                sx = rx + vpc_width
+                ex = ax
+
+            mid_y = ay + Inches(2.5)
+            self._add_arrow(slide, sx, mid_y, ex, mid_y,
+                            Colors.ARROW_PEERING, width=Pt(2),
+                            label=f"Peering: {peer['name']}")
+
+    def _draw_traffic_arrows(self, slide):
+        """Draw arrows between resources based on SG ingress/egress rules.
+
+        Strategy to minimize crossing:
+        - For 1-to-many or many-to-many: prefer same-column (vertical) arrows
+        - Cross-column (diagonal) arrows are avoided when both sides have
+          resources in the same column. Only draw cross-column if no same-column
+          pair exists.
+        - Arrows flow downward (top→bottom) following tier order.
+        """
+        sg_connections = self.parser.get_sg_connections()
+        sg_resource_map = self.parser.build_sg_to_resources_map()
+
+        drawn = set()
+
+        for conn in sg_connections:
+            from_sg = conn["from_sg"]
+            to_sg = conn["to_sg"]
+            port = conn.get("port", "")
+
+            from_resources = sg_resource_map.get(from_sg, [])
+            to_resources = sg_resource_map.get(to_sg, [])
+
+            # Build all possible arrows with position info
+            arrows = []
+            for from_res in from_resources:
+                from_key = f"{from_res['prefix']}{from_res['id']}"
+                if from_key not in self.shape_positions:
+                    continue
+                sx, sy = self.shape_positions[from_key]
+
+                for to_res in to_resources:
+                    to_key = f"{to_res['prefix']}{to_res['id']}"
+                    if to_key not in self.shape_positions:
+                        continue
+                    ex, ey = self.shape_positions[to_key]
+
+                    # Classify: same-column (vertical) vs cross-column (diagonal)
+                    x_diff = abs(sx - ex)
+                    is_same_col = x_diff < Inches(1.0)
+
+                    arrows.append({
+                        "from_key": from_key, "to_key": to_key,
+                        "sx": sx, "sy": sy, "ex": ex, "ey": ey,
+                        "same_col": is_same_col,
+                    })
+
+            # If we have same-column arrows, skip cross-column ones
+            has_same_col = any(a["same_col"] for a in arrows)
+
+            for arrow in arrows:
+                # Skip cross-column if same-column arrows exist
+                if has_same_col and not arrow["same_col"]:
+                    continue
+
+                from_key = arrow["from_key"]
+                to_key = arrow["to_key"]
+                arrow_id = f"{from_key}->{to_key}"
+                if arrow_id in drawn:
+                    continue
+                drawn.add(arrow_id)
+
+                sx, sy = arrow["sx"], arrow["sy"]
+                ex, ey = arrow["ex"], arrow["ey"]
+
+                color = Colors.ARROW_INTERNAL
+                label = f":{port}" if port else ""
+
+                # Adjust start/end to shape edges
+                if abs(ey - sy) > abs(ex - sx):
+                    # Vertical arrow (most common: tier-to-tier)
+                    if ey > sy:
+                        sy_adj = sy + Inches(0.30)
+                        ey_adj = ey - Inches(0.30)
+                    else:
+                        sy_adj = sy - Inches(0.30)
+                        ey_adj = ey + Inches(0.30)
+                    self._add_arrow(slide, sx, int(sy_adj), ex, int(ey_adj),
+                                    color, width=Pt(1.8), label=label)
+                else:
+                    # Horizontal or diagonal
+                    if ex > sx:
+                        sx_adj = sx + Inches(0.85)
+                        ex_adj = ex - Inches(0.85)
+                    else:
+                        sx_adj = sx - Inches(0.85)
+                        ex_adj = ex + Inches(0.85)
+                    self._add_arrow(slide, int(sx_adj), sy, int(ex_adj), ey,
+                                    color, width=Pt(1.8), label=label)
+
+    # ----------------------------------------------------------
+    # Slide 2: Security Group Details
+    # ----------------------------------------------------------
+    def _create_sg_detail_slide(self, vpcs):
+        slide = self.prs.slides.add_slide(self.prs.slide_layouts[6])
+
+        self._add_text_box(slide, Inches(0.3), Inches(0.2), Inches(12), Inches(0.5),
+                           "Security Group Rules - External Access Audit",
+                           font_size=20, bold=True)
+
+        y = Inches(0.9)
+
+        for vpc in vpcs:
+            # VPC header
+            self._add_text_box(slide, Inches(0.3), y, Inches(6), Inches(0.35),
+                               f"VPC: {vpc['name']} ({vpc['cidr']})",
+                               font_size=12, bold=True, color=Colors.VPC_BORDER)
+            y += Inches(0.4)
+
+            # External rules (0.0.0.0/0) - highlighted in red
+            ext_rules = self.parser.get_external_sg_rules(vpc["id"])
+            if ext_rules:
+                self._add_text_box(slide, Inches(0.5), y, Inches(6), Inches(0.25),
+                                   "!! EXTERNAL ACCESS (0.0.0.0/0) !!",
+                                   font_size=10, bold=True, color=Colors.ALERT_RED)
+                y += Inches(0.3)
+
+                # Table header
+                headers = ["SG Name", "Direction", "Port", "Source", "Description"]
+                col_widths = [Inches(2), Inches(1.2), Inches(1), Inches(1.5), Inches(4)]
+                self._draw_table_row(slide, Inches(0.5), y, col_widths, headers,
+                                     bold=True, bg_color=RGBColor(0xFF, 0xCC, 0xCC))
+                y += Inches(0.3)
+
+                for rule in ext_rules:
+                    port_str = str(rule["from_port"])
+                    if rule["from_port"] != rule["to_port"]:
+                        port_str = f"{rule['from_port']}-{rule['to_port']}"
+                    row = [
+                        rule["sg_name"],
+                        rule["direction"],
+                        port_str,
+                        rule["source"],
+                        rule["description"],
+                    ]
+                    self._draw_table_row(slide, Inches(0.5), y, col_widths, row,
+                                         bg_color=RGBColor(0xFF, 0xF0, 0xF0))
+                    y += Inches(0.28)
+            else:
+                self._add_text_box(slide, Inches(0.5), y, Inches(6), Inches(0.25),
+                                   "No external access rules (0.0.0.0/0)",
+                                   font_size=9, color=Colors.TEXT_GRAY)
+                y += Inches(0.3)
+
+            # All SG rules summary
+            y += Inches(0.1)
+            self._add_text_box(slide, Inches(0.5), y, Inches(6), Inches(0.25),
+                               "All Security Group Rules:",
+                               font_size=10, bold=True)
+            y += Inches(0.3)
+
+            sgs = self.parser.get_security_groups_for_vpc(vpc["id"])
+            for sg in sgs:
+                self._add_text_box(slide, Inches(0.5), y, Inches(8), Inches(0.22),
+                                   f"{sg['name']} ({sg['id']}) - {sg['description']}",
+                                   font_size=8, bold=True)
+                y += Inches(0.25)
+
+                # Ingress
+                for rule in sg.get("ingress", []):
+                    sources = []
+                    for ipr in AWSConfigParser._normalize_ip_ranges(rule.get("ipRanges", [])):
+                        sources.append(ipr.get("cidrIp", ""))
+                    for pair in rule.get("userIdGroupPairs", []):
+                        sources.append(f"SG:{pair.get('groupId', '')}")
+
+                    port_str = str(rule.get("fromPort", "all"))
+                    src_str = ", ".join(sources) if sources else "N/A"
+                    is_external = any("0.0.0.0/0" in s for s in sources)
+
+                    text = f"  IN  | :{port_str} | from {src_str}"
+                    color = Colors.ALERT_RED if is_external else Colors.TEXT_BLACK
+                    self._add_text_box(slide, Inches(0.7), y, Inches(10), Inches(0.2),
+                                       text, font_size=7, color=color,
+                                       bold=is_external)
+                    y += Inches(0.2)
+
+                # Egress
+                for rule in sg.get("egress", []):
+                    dests = []
+                    for ipr in AWSConfigParser._normalize_ip_ranges(rule.get("ipRanges", [])):
+                        dests.append(ipr.get("cidrIp", ""))
+                    for pair in rule.get("userIdGroupPairs", []):
+                        dests.append(f"SG:{pair.get('groupId', '')}")
+
+                    port_str = str(rule.get("fromPort", "all"))
+                    dst_str = ", ".join(dests) if dests else "N/A"
+
+                    text = f"  OUT | :{port_str} | to {dst_str}"
+                    self._add_text_box(slide, Inches(0.7), y, Inches(10), Inches(0.2),
+                                       text, font_size=7)
+                    y += Inches(0.2)
+
+                y += Inches(0.1)
+
+            y += Inches(0.2)
+
+    # ----------------------------------------------------------
+    # Slide 3: Traffic Flow
+    # ----------------------------------------------------------
+    def _create_traffic_flow_slide(self, vpcs):
+        slide = self.prs.slides.add_slide(self.prs.slide_layouts[6])
+
+        self._add_text_box(slide, Inches(0.3), Inches(0.2), Inches(12), Inches(0.5),
+                           "Traffic Flow Summary - External Audit",
+                           font_size=20, bold=True)
+
+        # Get SG-to-SG connections
+        connections = self.parser.get_sg_connections()
+
+        # Build a readable flow
+        y = Inches(1.0)
+
+        # Inbound flows from Internet
+        self._add_text_box(slide, Inches(0.3), y, Inches(8), Inches(0.35),
+                           "INBOUND Traffic Flows (Internet -> Internal)",
+                           font_size=14, bold=True, color=Colors.ARROW_EXTERNAL)
+        y += Inches(0.5)
+
+        for vpc in vpcs:
+            ext_rules = self.parser.get_external_sg_rules(vpc["id"])
+            if ext_rules:
+                self._add_text_box(slide, Inches(0.5), y, Inches(8), Inches(0.25),
+                                   f"VPC: {vpc['name']}", font_size=11, bold=True)
+                y += Inches(0.35)
+
+                # Trace the chain: Internet -> ALB (SG with 0.0.0.0/0) -> Web -> DB
+                for rule in ext_rules:
+                    text = f"Internet -> :{rule['from_port']} -> {rule['sg_name']}"
+                    self._add_text_box(slide, Inches(0.7), y, Inches(10), Inches(0.22),
+                                       text, font_size=9, color=Colors.ALERT_RED)
+                    y += Inches(0.25)
+
+                    # Follow egress from this SG
+                    for conn in connections:
+                        if conn["from_sg"] == rule["sg_id"]:
+                            text2 = f"    -> :{conn['port']} -> {conn['to_sg_name']} ({conn['description']})"
+                            self._add_text_box(slide, Inches(0.7), y, Inches(10), Inches(0.22),
+                                               text2, font_size=9)
+                            y += Inches(0.25)
+
+                            # Follow next hop
+                            for conn2 in connections:
+                                if conn2["from_sg"] == conn["to_sg"]:
+                                    text3 = f"        -> :{conn2['port']} -> {conn2['to_sg_name']} ({conn2['description']})"
+                                    self._add_text_box(slide, Inches(0.7), y, Inches(10), Inches(0.22),
+                                                       text3, font_size=9)
+                                    y += Inches(0.25)
+
+        y += Inches(0.3)
+
+        # VPC Peering
+        peerings = self.parser.get_peering_connections()
+        if peerings:
+            self._add_text_box(slide, Inches(0.3), y, Inches(8), Inches(0.35),
+                               "VPC Peering Connections",
+                               font_size=14, bold=True, color=Colors.ARROW_PEERING)
+            y += Inches(0.5)
+
+            for peer in peerings:
+                text = (f"{peer['name']}: "
+                        f"{peer['requester_vpc']} ({peer['requester_cidr']}) "
+                        f"<-> {peer['accepter_vpc']} ({peer['accepter_cidr']})")
+                self._add_text_box(slide, Inches(0.5), y, Inches(10), Inches(0.22),
+                                   text, font_size=9)
+                y += Inches(0.3)
+
+        # Outbound flows
+        y += Inches(0.2)
+        self._add_text_box(slide, Inches(0.3), y, Inches(8), Inches(0.35),
+                           "OUTBOUND Traffic (Internal -> Internet)",
+                           font_size=14, bold=True, color=RGBColor(0xFF, 0x8F, 0x00))
+        y += Inches(0.5)
+
+        for vpc in vpcs:
+            sgs = self.parser.get_security_groups_for_vpc(vpc["id"])
+            has_outbound = False
+            for sg in sgs:
+                for rule in sg.get("egress", []):
+                    for ipr in AWSConfigParser._normalize_ip_ranges(rule.get("ipRanges", [])):
+                        if ipr.get("cidrIp") == "0.0.0.0/0":
+                            if not has_outbound:
+                                self._add_text_box(slide, Inches(0.5), y, Inches(8), Inches(0.25),
+                                                   f"VPC: {vpc['name']}", font_size=11, bold=True)
+                                y += Inches(0.35)
+                                has_outbound = True
+                            text = (f"{sg['name']} -> :{rule.get('fromPort', 'all')} -> "
+                                    f"0.0.0.0/0 ({ipr.get('description', '')})")
+                            self._add_text_box(slide, Inches(0.7), y, Inches(10), Inches(0.22),
+                                               text, font_size=9)
+                            y += Inches(0.25)
+
+    # ----------------------------------------------------------
+    # Drawing Helpers
+    # ----------------------------------------------------------
+    def _add_rounded_rect(self, slide, x, y, w, h, text, fill_color, border_color,
+                           font_size=10, bold=False):
+        shape = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, x, y, w, h)
+        shape.fill.solid()
+        shape.fill.fore_color.rgb = fill_color
+        shape.line.color.rgb = border_color
+        shape.line.width = Pt(1.5)
+
+        # Adjust corner radius
+        shape.adjustments[0] = 0.05
+
+        tf = shape.text_frame
+        tf.word_wrap = True
+        tf.auto_size = None
+        tf.margin_left = Pt(4)
+        tf.margin_right = Pt(4)
+        tf.margin_top = Pt(2)
+        tf.margin_bottom = Pt(2)
+
+        if text:
+            p = tf.paragraphs[0]
+            p.text = text
+            p.font.size = Pt(font_size)
+            p.font.bold = bold
+            p.font.color.rgb = Colors.TEXT_BLACK
+            p.alignment = PP_ALIGN.CENTER
+            tf.paragraphs[0].space_before = Pt(0)
+            tf.paragraphs[0].space_after = Pt(0)
+
+        return shape
+
+    def _add_text_box(self, slide, x, y, w, h, text, font_size=10,
+                       bold=False, color=None, align=PP_ALIGN.LEFT):
+        txBox = slide.shapes.add_textbox(x, y, w, h)
+        tf = txBox.text_frame
+        tf.word_wrap = True
+        p = tf.paragraphs[0]
+        p.text = text
+        p.font.size = Pt(font_size)
+        p.font.bold = bold
+        p.font.color.rgb = color or Colors.TEXT_BLACK
+        p.alignment = align
+        p.space_before = Pt(0)
+        p.space_after = Pt(0)
+        return txBox
+
+    def _add_arrow(self, slide, x1, y1, x2, y2, color, width=Pt(1.5), label=None):
+        """Add an arrow connector with arrowhead via direct XML manipulation."""
+        from pptx.oxml.ns import qn
+        from lxml import etree
+
+        # Ensure coordinates are integers (EMU units)
+        x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+
+        connector = slide.shapes.add_connector(
+            1,  # straight connector
+            x1, y1, x2, y2
+        )
+        connector.line.color.rgb = color
+        connector.line.width = width
+
+        # Add arrowhead via XML (most reliable method for python-pptx)
+        cxnSp = connector._element
+        spPr = cxnSp.find(qn('p:spPr'))
+        if spPr is None:
+            spPr = cxnSp.find(qn('p:cxnSp/p:spPr'))
+
+        ln = spPr.find(qn('a:ln'))
+        if ln is None:
+            ln = etree.SubElement(spPr, qn('a:ln'))
+
+        # End arrow (triangle)
+        tailEnd = ln.find(qn('a:tailEnd'))
+        if tailEnd is None:
+            tailEnd = etree.SubElement(ln, qn('a:tailEnd'))
+        tailEnd.set('type', 'triangle')
+        tailEnd.set('w', 'med')
+        tailEnd.set('len', 'med')
+
+        # Add label near midpoint
+        if label:
+            mid_x = (x1 + x2) / 2
+            mid_y = (y1 + y2) / 2
+
+            # Offset label slightly to not overlap the line
+            offset_x = Inches(0.05)
+            offset_y = -Inches(0.18)
+
+            # For mostly vertical lines, offset to the right
+            if abs(y2 - y1) > abs(x2 - x1):
+                offset_x = Inches(0.15)
+                offset_y = -Inches(0.05)
+
+            self._add_text_box(slide,
+                               mid_x + offset_x - Inches(0.35),
+                               mid_y + offset_y,
+                               Inches(0.9), Inches(0.22),
+                               label, font_size=7, color=color,
+                               align=PP_ALIGN.CENTER, bold=True)
+
+    def _draw_table_row(self, slide, x, y, col_widths, values,
+                         bold=False, bg_color=None):
+        """Draw a table-like row using rectangles."""
+        cx = x
+        for i, (val, cw) in enumerate(zip(values, col_widths)):
+            shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, cx, y, cw, Inches(0.28))
+            if bg_color:
+                shape.fill.solid()
+                shape.fill.fore_color.rgb = bg_color
+            else:
+                shape.fill.background()
+            shape.line.color.rgb = RGBColor(0xCC, 0xCC, 0xCC)
+            shape.line.width = Pt(0.5)
+
+            tf = shape.text_frame
+            tf.margin_left = Pt(3)
+            tf.margin_right = Pt(3)
+            tf.margin_top = Pt(1)
+            tf.margin_bottom = Pt(1)
+            p = tf.paragraphs[0]
+            p.text = str(val)
+            p.font.size = Pt(7)
+            p.font.bold = bold
+            p.alignment = PP_ALIGN.LEFT
+
+            cx += cw
+
+    def _add_legend(self, slide, x, y):
+        """Add color legend."""
+        items = [
+            ("Public Subnet", Colors.PUBLIC_FILL, Colors.PUBLIC_BORDER),
+            ("Private Subnet", Colors.PRIVATE_FILL, Colors.PRIVATE_BORDER),
+            ("Isolated Subnet", Colors.ISOLATED_FILL, Colors.ISOLATED_BORDER),
+            ("WAF", Colors.WAF_FILL, Colors.WAF_BORDER),
+            ("Internet GW", Colors.IGW_FILL, Colors.IGW_BORDER),
+            ("NAT Gateway", Colors.NAT_FILL, Colors.NAT_BORDER),
+            ("ALB", Colors.ALB_FILL, Colors.ALB_BORDER),
+            ("EC2", Colors.EC2_FILL, Colors.EC2_BORDER),
+            ("RDS", Colors.RDS_FILL, Colors.RDS_BORDER),
+            ("S3", Colors.S3_FILL, Colors.S3_BORDER),
+        ]
+
+        self._add_text_box(slide, x, y, Inches(2), Inches(0.25),
+                           "Legend:", font_size=8, bold=True)
+        ly = y + Inches(0.25)
+
+        for label, fill, border in items:
+            self._add_rounded_rect(slide, x, ly, Inches(0.3), Inches(0.2),
+                                    "", fill, border, font_size=6)
+            self._add_text_box(slide, x + Inches(0.35), ly, Inches(1.5), Inches(0.2),
+                               label, font_size=7)
+            ly += Inches(0.22)
+
+        # Arrow legends
+        ly += Inches(0.05)
+        arrow_items = [
+            ("External Access", Colors.ARROW_EXTERNAL),
+            ("Internal Traffic", Colors.ARROW_INTERNAL),
+            ("NAT Outbound", RGBColor(0xFF, 0x8F, 0x00)),
+            ("VPC Peering", Colors.ARROW_PEERING),
+            ("S3 Access", Colors.S3_BORDER),
+        ]
+        for label, color in arrow_items:
+            self._add_text_box(slide, x, ly, Inches(0.3), Inches(0.2),
+                               "-->", font_size=7, color=color, bold=True)
+            self._add_text_box(slide, x + Inches(0.35), ly, Inches(1.5), Inches(0.2),
+                               label, font_size=7)
+            ly += Inches(0.22)
+
+    def _tier_colors(self, tier):
+        if tier == "Public":
+            return Colors.PUBLIC_FILL, Colors.PUBLIC_BORDER
+        elif tier == "Isolated":
+            return Colors.ISOLATED_FILL, Colors.ISOLATED_BORDER
+        else:
+            return Colors.PRIVATE_FILL, Colors.PRIVATE_BORDER
+
+
+# ============================================================
+# Main
+# ============================================================
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python generate_diagram.py <aws_config_snapshot.json>")
+        print("Output: network_diagram.pptx (same directory as input)")
+        sys.exit(1)
+
+    input_path = sys.argv[1]
+    if not os.path.exists(input_path):
+        print(f"Error: File not found: {input_path}")
+        sys.exit(1)
+
+    output_dir = os.path.dirname(os.path.abspath(input_path))
+    output_path = os.path.join(output_dir, "network_diagram.pptx")
+
+    print(f"Parsing: {input_path}")
+    parser = AWSConfigParser(input_path)
+
+    print(f"Found resources:")
+    for rtype, items in sorted(parser.by_type.items()):
+        print(f"  {rtype}: {len(items)}")
+
+    print(f"\nGenerating diagram...")
+    generator = DiagramGenerator(parser)
+    generator.generate(output_path)
+    print("Done!")
+
+
+if __name__ == "__main__":
+    main()
