@@ -366,10 +366,10 @@ class DiagramExcel:
         self.p = parser
         self.pos = {}       # key -> (cx, cy, hw, hh) EMU bounding box
         self.shapes = {}    # key -> shape_id (for connector binding)
-        self._xml_elements = []  # DrawingML elements to inject
+        # Z-layer ordering: 0=boxes, 1=labels, 2=images, 3=connectors, 4=arrow_labels
+        self._xml_elements = []  # (z_layer, xml_element) — sorted on save
         self._shape_id = 100     # auto-incrementing shape ID
         self._images = []        # (path, left_emu, top_emu, w_emu, h_emu, key_or_none)
-        self._connectors = []    # (from_key, to_key, xml_element) for post-binding
 
     def _next_id(self):
         sid = self._shape_id
@@ -432,7 +432,6 @@ class DiagramExcel:
             self._xml_elements = []
             self._shape_id = 100
             self._images = []
-            self._connectors = []
             self._build(v)
 
         # Save Excel file
@@ -1421,6 +1420,13 @@ class DiagramExcel:
     # ==========================================================
     # Drawing Primitives (DrawingML XML)
     # ==========================================================
+    # Z-layer constants
+    Z_BOX = 0       # Background boxes (Cloud, VPC, Subnet)
+    Z_LABEL = 1     # Text labels on boxes
+    Z_IMAGE = 2     # Icon images (drawn by openpyxl, ordered separately)
+    Z_CONNECTOR = 3 # Connector arrows
+    Z_ARROWLBL = 4  # Arrow text labels (topmost)
+
     def _box(self, x, y, w, h, fill, border, bw_pt=1.0, r_ratio=0.015):
         # Convert ratio to DrawingML adj value
         # In DrawingML, adj val 50000 = fully rounded (circle), val 0 = sharp corners
@@ -1432,17 +1438,18 @@ class DiagramExcel:
             left=int(x), top=int(y), width=int(w), height=int(h),
             fill_color=fill, line_color=border, line_width_pt=bw_pt,
             corner_radius=corner_radius)
-        self._xml_elements.append(elem)
+        self._xml_elements.append((self.Z_BOX, elem))
 
     def _txt(self, x, y, w, h, text, sz=10, bold=False, color=None,
-             alignment="l"):
+             alignment="l", z_layer=None):
         color = color or C.TEXT
         elem = _make_textbox_xml(
             self._next_id(), "txt",
             left=int(x), top=int(y), width=int(w), height=int(h),
             text=text, font_size=sz, font_bold=bold, font_color=color,
             alignment=alignment)
-        self._xml_elements.append(elem)
+        layer = z_layer if z_layer is not None else self.Z_LABEL
+        self._xml_elements.append((layer, elem))
 
     def _ilabel(self, x, y, icon, text, sz=8, bold=False, color=None):
         isz = Inches(0.22)
@@ -1553,7 +1560,7 @@ class DiagramExcel:
             color=color, line_width_pt=1.5, arrow=True,
             start_shape_id=f_sid, start_idx=f_idx,
             end_shape_id=t_sid, end_idx=t_idx)
-        self._xml_elements.append(elem)
+        self._xml_elements.append((self.Z_CONNECTOR, elem))
 
         if label:
             dx = ex - sx
@@ -1568,7 +1575,8 @@ class DiagramExcel:
             else:
                 my -= int(Inches(0.18))
             self._txt(mx - int(Inches(0.5)), my - int(Inches(0.1)),
-                      Inches(1.1), Inches(0.22), label, 6, True, color, "ctr")
+                      Inches(1.1), Inches(0.22), label, 6, True, color, "ctr",
+                      z_layer=self.Z_ARROWLBL)
 
     def _legend(self, x, y):
         lw = Inches(2.2)
@@ -1601,9 +1609,8 @@ class DiagramExcel:
         ws.sheet_view.showGridLines = False
 
         # Build key->shape_id mapping for images (for connector binding)
-        # We need to rewrite pic element IDs in post-processing
-        key_to_shape_id = {}  # key -> desired shape_id
-        image_pos_to_key = {}  # (left_emu, top_emu) -> key
+        key_to_shape_id = {}
+        image_pos_to_key = {}
         for path, left_emu, top_emu, w_emu, h_emu, key in self._images:
             if key and key in self.shapes:
                 key_to_shape_id[key] = self.shapes[key]
@@ -1618,7 +1625,6 @@ class DiagramExcel:
             px_per_emu = 96.0 / EMU_PER_INCH
             img.width = int(w_emu * px_per_emu)
             img.height = int(h_emu * px_per_emu)
-
             img.anchor = AbsoluteAnchor(
                 pos=XDRPoint2D(int(left_emu), int(top_emu)),
                 ext=XDRPositiveSize2D(int(w_emu), int(h_emu)))
@@ -1630,7 +1636,8 @@ class DiagramExcel:
         os.close(tmp_fd)
         wb.save(tmp_path)
 
-        # Post-process: inject shapes/connectors AND rewrite pic IDs
+        # Post-process: reorder all elements by Z-layer
+        # Z-order: boxes(0) → labels(1) → images(2) → connectors(3) → arrow_labels(4)
         drawing_file = 'xl/drawings/drawing1.xml'
         with zipfile.ZipFile(tmp_path, 'r') as zin:
             if drawing_file not in zin.namelist():
@@ -1643,31 +1650,54 @@ class DiagramExcel:
                     if item.filename == drawing_file:
                         root = etree.fromstring(data)
 
-                        # Rewrite pic element IDs to match self.shapes
-                        # openpyxl assigns sequential IDs (1, 2, 3...)
-                        # We need them to match the IDs used in stCxn/endCxn
-                        for abs_anchor in root.findall(
-                                f"{{{XDR_NS}}}absoluteAnchor"):
+                        # Extract all existing anchors (images from openpyxl)
+                        existing_anchors = []
+                        for abs_anchor in list(root.findall(
+                                f"{{{XDR_NS}}}absoluteAnchor")):
+                            # Rewrite pic IDs for connector binding
                             pic = abs_anchor.find(f"{{{XDR_NS}}}pic")
-                            if pic is None:
-                                continue
-                            pos_el = abs_anchor.find(f"{{{XDR_NS}}}pos")
-                            if pos_el is None:
-                                continue
-                            px = int(pos_el.get("x", "0"))
-                            py = int(pos_el.get("y", "0"))
-                            key = image_pos_to_key.get((px, py))
-                            if key and key in key_to_shape_id:
-                                desired_id = key_to_shape_id[key]
-                                nv = pic.find(f"{{{XDR_NS}}}nvPicPr")
-                                if nv is not None:
-                                    cNvPr = nv.find(f"{{{XDR_NS}}}cNvPr")
-                                    if cNvPr is not None:
-                                        cNvPr.set("id", str(desired_id))
+                            if pic is not None:
+                                pos_el = abs_anchor.find(f"{{{XDR_NS}}}pos")
+                                if pos_el is not None:
+                                    px = int(pos_el.get("x", "0"))
+                                    py = int(pos_el.get("y", "0"))
+                                    key = image_pos_to_key.get((px, py))
+                                    if key and key in key_to_shape_id:
+                                        desired_id = key_to_shape_id[key]
+                                        nv = pic.find(f"{{{XDR_NS}}}nvPicPr")
+                                        if nv is not None:
+                                            cNvPr = nv.find(
+                                                f"{{{XDR_NS}}}cNvPr")
+                                            if cNvPr is not None:
+                                                cNvPr.set("id",
+                                                          str(desired_id))
+                            existing_anchors.append(abs_anchor)
+                            root.remove(abs_anchor)
 
-                        # Append shapes and connectors
-                        for elem in self._xml_elements:
-                            root.append(elem)
+                        # Also remove twoCellAnchor / oneCellAnchor if any
+                        for tag in ['twoCellAnchor', 'oneCellAnchor']:
+                            for el in list(root.findall(f"{{{XDR_NS}}}{tag}")):
+                                existing_anchors.append(el)
+                                root.remove(el)
+
+                        # Sort xml_elements by Z-layer
+                        sorted_elems = sorted(self._xml_elements,
+                                              key=lambda x: x[0])
+
+                        # Rebuild drawing: boxes → labels → images → connectors → arrow_labels
+                        # Insert shapes at z_layer < Z_IMAGE first
+                        for z_layer, elem in sorted_elems:
+                            if z_layer < self.Z_IMAGE:
+                                root.append(elem)
+
+                        # Insert images (z_layer = Z_IMAGE)
+                        for anchor in existing_anchors:
+                            root.append(anchor)
+
+                        # Insert shapes at z_layer >= Z_IMAGE
+                        for z_layer, elem in sorted_elems:
+                            if z_layer >= self.Z_IMAGE:
+                                root.append(elem)
 
                         data = etree.tostring(
                             root, xml_declaration=True,
