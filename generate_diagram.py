@@ -330,7 +330,141 @@ class AWSConfigParser:
                         if sub and sub not in s2v:
                             s2v[sub] = vpc
 
+        # Source 6: Route Table associations (subnetId in associations)
+        for item in self.by_type["AWS::EC2::RouteTable"]:
+            cfg = item.get("configuration", {})
+            if not isinstance(cfg, dict):
+                continue
+            rt_vpc = cfg.get("vpcId", "")
+            if not rt_vpc:
+                rt_vpc = self._get_related_vpc(item)
+            if not rt_vpc:
+                continue
+            assocs = cfg.get("associations",
+                             cfg.get("routeTableAssociationSet", []))
+            for a in assocs:
+                sid = a.get("subnetId", "")
+                if sid and sid not in s2v:
+                    s2v[sid] = rt_vpc
+
         return s2v
+
+    def _build_igw_vpc_map(self):
+        """Build igw_id -> vpc_id map from Route Tables.
+
+        When IGW configuration/relationships are empty, we reverse-engineer
+        the mapping from Route Tables that reference the IGW in their routes.
+        """
+        igw2vpc = {}
+
+        # Source 1: IGW configuration.attachments
+        for item in self.by_type["AWS::EC2::InternetGateway"]:
+            cfg = item.get("configuration", {})
+            if not isinstance(cfg, dict):
+                cfg = {}
+            for att in cfg.get("attachments", []):
+                vid = att.get("vpcId", "")
+                if vid:
+                    igw2vpc[item["resourceId"]] = vid
+            # Source 2: relationships
+            if item["resourceId"] not in igw2vpc:
+                rel_vpc = self._get_related_vpc(item)
+                if rel_vpc:
+                    igw2vpc[item["resourceId"]] = rel_vpc
+
+        # Source 3: Route Tables (routes contain gatewayId = igw-xxx)
+        for item in self.by_type["AWS::EC2::RouteTable"]:
+            cfg = item.get("configuration", {})
+            if not isinstance(cfg, dict):
+                continue
+            rt_vpc = cfg.get("vpcId", "")
+            if not rt_vpc:
+                rt_vpc = self._get_related_vpc(item)
+            if not rt_vpc:
+                continue
+            routes = cfg.get("routes", cfg.get("routeSet", []))
+            for r in routes:
+                gw = r.get("gatewayId", "")
+                if gw and gw.startswith("igw-") and gw not in igw2vpc:
+                    igw2vpc[gw] = rt_vpc
+
+        return igw2vpc
+
+    def _build_nat_vpc_map(self):
+        """Build nat_id -> vpc_id map from Route Tables and NAT config.
+
+        When NAT configuration/relationships are empty, we reverse-engineer
+        the mapping from Route Tables that reference the NAT in their routes.
+        """
+        nat2vpc = {}
+
+        # Source 1: NAT configuration.vpcId
+        for item in self.by_type["AWS::EC2::NatGateway"]:
+            cfg = item.get("configuration", {})
+            if not isinstance(cfg, dict):
+                cfg = {}
+            vid = cfg.get("vpcId", "")
+            if vid:
+                nat2vpc[item["resourceId"]] = vid
+            elif self._get_related_vpc(item):
+                nat2vpc[item["resourceId"]] = self._get_related_vpc(item)
+
+        # Source 2: Route Tables (routes contain natGatewayId = nat-xxx)
+        for item in self.by_type["AWS::EC2::RouteTable"]:
+            cfg = item.get("configuration", {})
+            if not isinstance(cfg, dict):
+                continue
+            rt_vpc = cfg.get("vpcId", "")
+            if not rt_vpc:
+                rt_vpc = self._get_related_vpc(item)
+            if not rt_vpc:
+                continue
+            routes = cfg.get("routes", cfg.get("routeSet", []))
+            for r in routes:
+                nat = r.get("natGatewayId", "")
+                if nat and nat.startswith("nat-") and nat not in nat2vpc:
+                    nat2vpc[nat] = rt_vpc
+
+        return nat2vpc
+
+    def _build_rds_vpc_map(self):
+        """Build rds_id -> vpc_id map by matching RDS subnet IDs to known subnets.
+
+        When RDS dBSubnetGroup.vpcId and relationships are empty, we
+        reverse-engineer by finding which VPC the RDS's subnets belong to.
+        """
+        rds2vpc = {}
+        s2v = self._build_subnet_vpc_map()
+
+        for item in self.by_type["AWS::RDS::DBInstance"]:
+            cfg = item.get("configuration", {})
+            if not isinstance(cfg, dict):
+                cfg = {}
+            rid = item["resourceId"]
+
+            # Source 1: dBSubnetGroup.vpcId
+            sg_group = cfg.get("dBSubnetGroup", cfg.get("dbSubnetGroup", {}))
+            if not isinstance(sg_group, dict):
+                sg_group = {}
+            vid = sg_group.get("vpcId", "")
+            if vid:
+                rds2vpc[rid] = vid
+                continue
+
+            # Source 2: relationships
+            rel_vpc = self._get_related_vpc(item)
+            if rel_vpc:
+                rds2vpc[rid] = rel_vpc
+                continue
+
+            # Source 3: Match subnets in dBSubnetGroup to known subnet→VPC map
+            for s in sg_group.get("subnets", []):
+                sub_id = s.get("subnetIdentifier", "")
+                if sub_id and sub_id in s2v:
+                    rds2vpc[rid] = s2v[sub_id]
+                    break
+
+        return rds2vpc
 
     def get_subnets_for_vpc(self, vpc_id):
         tier_map = self._build_subnet_tier_map(vpc_id)
@@ -399,40 +533,32 @@ class AWSConfigParser:
         return subnets
 
     def get_igw_for_vpc(self, vpc_id):
+        igw_vpc_map = self._build_igw_vpc_map()
         for item in self.by_type["AWS::EC2::InternetGateway"]:
-            cfg = item.get("configuration", {})
-            if not isinstance(cfg, dict):
-                cfg = {}
-            # Try configuration.attachments first
-            for att in cfg.get("attachments", []):
-                if att.get("vpcId") == vpc_id:
-                    return {
-                        "id": item["resourceId"],
-                        "name": item.get("tags", {}).get("Name", item["resourceId"]),
-                    }
-            # Fallback: check relationships
-            if self._get_related_vpc(item) == vpc_id:
+            rid = item["resourceId"]
+            # Use comprehensive reverse map (config + relationships + route tables)
+            if igw_vpc_map.get(rid) == vpc_id:
                 return {
-                    "id": item["resourceId"],
-                    "name": item.get("tags", {}).get("Name", item["resourceId"]),
+                    "id": rid,
+                    "name": item.get("tags", {}).get("Name", rid),
                 }
         return None
 
     def get_nat_gateways_for_vpc(self, vpc_id):
+        nat_vpc_map = self._build_nat_vpc_map()
         nats = []
         for item in self.by_type["AWS::EC2::NatGateway"]:
             cfg = item.get("configuration", {})
             if not isinstance(cfg, dict):
                 cfg = {}
-            item_vpc = cfg.get("vpcId", "")
-            if not item_vpc:
-                item_vpc = self._get_related_vpc(item)
-            if item_vpc == vpc_id:
+            rid = item["resourceId"]
+            # Use comprehensive reverse map (config + relationships + route tables)
+            if nat_vpc_map.get(rid) == vpc_id:
                 addrs = cfg.get("natGatewayAddresses", [])
                 public_ip = addrs[0].get("publicIp", "") if addrs else ""
                 nats.append({
-                    "id": item["resourceId"],
-                    "name": item.get("tags", {}).get("Name", item["resourceId"]),
+                    "id": rid,
+                    "name": item.get("tags", {}).get("Name", rid),
                     "subnet_id": cfg.get("subnetId", ""),
                     "public_ip": public_ip,
                 })
@@ -456,6 +582,7 @@ class AWSConfigParser:
         return instances
 
     def get_albs_for_vpc(self, vpc_id):
+        s2v = self._build_subnet_vpc_map()
         albs = []
         for item in self.by_type["AWS::ElasticLoadBalancingV2::LoadBalancer"]:
             cfg = item.get("configuration", {})
@@ -464,34 +591,46 @@ class AWSConfigParser:
             item_vpc = cfg.get("vpcId", "")
             if not item_vpc:
                 item_vpc = self._get_related_vpc(item)
+            # Fallback: match ALB's subnets to known subnet→VPC map
+            if not item_vpc:
+                for az in cfg.get("availabilityZones", []):
+                    sub = az.get("subnetId", "")
+                    if sub and sub in s2v:
+                        item_vpc = s2v[sub]
+                        break
             if item_vpc == vpc_id:
+                subnet_ids = []
+                for az in cfg.get("availabilityZones", []):
+                    sid = az.get("subnetId", "")
+                    if sid:
+                        subnet_ids.append(sid)
                 albs.append({
                     "id": item["resourceId"],
                     "name": cfg.get("loadBalancerName", item.get("tags", {}).get("Name", "")),
                     "scheme": cfg.get("scheme", ""),
                     "type": cfg.get("type", ""),
                     "dns": cfg.get("dNSName", ""),
-                    "subnet_ids": [az["subnetId"] for az in cfg.get("availabilityZones", [])],
+                    "subnet_ids": subnet_ids,
                     "sg_ids": cfg.get("securityGroups", []),
                 })
         return albs
 
     def get_rds_for_vpc(self, vpc_id):
+        rds_vpc_map = self._build_rds_vpc_map()
         dbs = []
         for item in self.by_type["AWS::RDS::DBInstance"]:
             cfg = item.get("configuration", {})
             if not isinstance(cfg, dict):
                 cfg = {}
-            sg_group = cfg.get("dBSubnetGroup", cfg.get("dbSubnetGroup", {}))
-            if not isinstance(sg_group, dict):
-                sg_group = {}
-            item_vpc = sg_group.get("vpcId", "")
-            if not item_vpc:
-                item_vpc = self._get_related_vpc(item)
-            if item_vpc == vpc_id:
-                subnet_ids = [s["subnetIdentifier"] for s in sg_group.get("subnets", [])]
+            rid = item["resourceId"]
+            # Use comprehensive reverse map (subnetGroup + relationships + subnet matching)
+            if rds_vpc_map.get(rid) == vpc_id:
+                sg_group = cfg.get("dBSubnetGroup", cfg.get("dbSubnetGroup", {}))
+                if not isinstance(sg_group, dict):
+                    sg_group = {}
+                subnet_ids = [s.get("subnetIdentifier", "") for s in sg_group.get("subnets", [])]
                 dbs.append({
-                    "id": item["resourceId"],
+                    "id": rid,
                     "name": cfg.get("dBInstanceIdentifier", ""),
                     "engine": cfg.get("engine", ""),
                     "instance_class": cfg.get("dBInstanceClass", ""),
@@ -499,7 +638,7 @@ class AWSConfigParser:
                     "multi_az": cfg.get("multiAZ", False),
                     "publicly_accessible": cfg.get("publiclyAccessible", False),
                     "subnet_ids": subnet_ids,
-                    "sg_ids": [sg["vpcSecurityGroupId"] for sg in cfg.get("vpcSecurityGroups", [])],
+                    "sg_ids": [sg.get("vpcSecurityGroupId", "") for sg in cfg.get("vpcSecurityGroups", [])],
                 })
         return dbs
 

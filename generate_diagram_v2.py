@@ -1666,6 +1666,19 @@ def main():
             else:
                 print(f"    {rid}: configuration is {type(cfg).__name__}, rel_vpc={rel_vpc}, az={az}")
 
+        # Dump reverse maps for troubleshooting
+        igw_map = parser._build_igw_vpc_map()
+        nat_map = parser._build_nat_vpc_map()
+        rds_map = parser._build_rds_vpc_map()
+        s2v_map = parser._build_subnet_vpc_map()
+        print(f"\n  --- Reverse maps ---")
+        print(f"    IGW->VPC: {igw_map}")
+        print(f"    NAT->VPC: {nat_map}")
+        print(f"    RDS->VPC: {rds_map}")
+        print(f"    Subnet->VPC: {len(s2v_map)} entries")
+        for sid, vid in sorted(s2v_map.items()):
+            print(f"      {sid} -> {vid}")
+
         for v in sorted(vpcs, key=lambda x: -x["score"]):
             vid = v["id"]
             default_tag = " (default)" if v.get("is_default") else ""
@@ -1683,10 +1696,14 @@ def main():
                 print(f"      {a['id']} {a['name']}")
             rdss = parser.get_rds_for_vpc(vid)
             print(f"    RDS: {len(rdss)}")
+            for r in rdss:
+                print(f"      {r['id']} {r['name']} ({r['engine']})")
             nats = parser.get_nat_gateways_for_vpc(vid)
             print(f"    NAT GW: {len(nats)}")
+            for n in nats:
+                print(f"      {n['id']} {n['name']}")
             igw = parser.get_igw_for_vpc(vid)
-            print(f"    IGW: {'yes' if igw else 'no'}")
+            print(f"    IGW: {igw['id'] if igw else 'no'}")
 
     print(f"\nGenerating v2 diagram...")
     DiagramV2(parser).generate(out, vpc_ids=vpc_ids)
