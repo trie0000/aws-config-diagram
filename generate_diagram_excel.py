@@ -447,7 +447,9 @@ class DiagramExcel:
         L = {}
 
         L['left_w'] = Inches(2.3) if has_edge else Inches(1.3)
-        L['right_margin'] = Inches(1.6) if has_peering else Inches(0.3)
+        # right_margin is outside the Cloud box; keep it slim.
+        # Space for orphan DB / peering is inside Cloud but outside VPC.
+        L['right_margin'] = Inches(0.3)
 
         L['cloud_x'] = L['left_w']
         L['cloud_y'] = Inches(0.35)
@@ -471,9 +473,11 @@ class DiagramExcel:
         min_az_h = max(min_az_h_1row, min_az_from_gw)
 
         cloud_pad = Inches(0.15)
+        # Reserve space inside Cloud box (right of VPC) for orphan DB/peering
+        db_col_w = Inches(1.5) if has_peering else 0
         L['vpc_x'] = L['cloud_x'] + cloud_pad
         L['vpc_y'] = L['cloud_y'] + Inches(0.40)
-        L['vpc_w'] = L['cloud_w'] - 2 * cloud_pad
+        L['vpc_w'] = L['cloud_w'] - 2 * cloud_pad - db_col_w
 
         vpc_header = Inches(0.30)
         vpc_pad = Inches(0.10)
