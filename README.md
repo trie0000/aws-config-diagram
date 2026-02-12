@@ -20,8 +20,7 @@ Excel (`.xlsx`) または PowerPoint (`.pptx`) 形式で出力します。
 ## セットアップ
 
 ```bash
-# リポジトリをクローン
-git clone https://github.com/trie0000/aws-config-diagram.git
+# ツールのフォルダに移動
 cd aws-config-diagram
 
 # Python仮想環境を作成
