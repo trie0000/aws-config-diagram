@@ -1,5 +1,5 @@
 """
-generate_diagram_v2.py: AWS Config JSON -> AWS-style Network Diagram (pptx)
+diagram_pptx.py: AWS Config JSON -> AWS-style Network Diagram (pptx)
 
 Generates a diagram matching AWS Architecture diagram style with:
 - AWS official icons (PNG) for 30+ service types
@@ -14,7 +14,7 @@ Generates a diagram matching AWS Architecture diagram style with:
 - Same-AZ arrows preferred; cross-AZ arrows minimized
 
 Usage:
-    python generate_diagram_v2.py tabelog_aws_config.json
+    python diagram_pptx.py tabelog_aws_config.json
 
 Version: 4.0.0
 Last Updated: 2026-02-11
@@ -33,7 +33,7 @@ from pptx.enum.shapes import MSO_SHAPE
 from pptx.oxml.ns import qn
 from lxml import etree
 
-from generate_diagram import AWSConfigParser
+from aws_config_parser import AWSConfigParser
 
 # ============================================================
 # Icon paths
@@ -354,15 +354,20 @@ class DiagramV2:
 
         desired = {}
         for t in ["Public", "Private", "Isolated"]:
-            desired[t] = max(max_icons[t] * icon_slot, min_col)
+            if t in active_tiers:
+                desired[t] = max(max_icons[t] * icon_slot, min_col)
+            else:
+                desired[t] = 0  # inactive tier gets no width
 
         total_desired = sum(desired.values())
         if total_desired > 0 and available > 0:
             scale = available / total_desired
-            col_widths = {t: desired[t] * scale for t, w in desired.items()}
+            col_widths = {t: desired[t] * scale for t in desired}
         else:
-            equal = available / 3 if available > 0 else min_col
-            col_widths = {"Public": equal, "Private": equal, "Isolated": equal}
+            n_active = len(active_tiers) if active_tiers else 1
+            equal = available / n_active if available > 0 else min_col
+            col_widths = {t: (equal if t in active_tiers else 0)
+                          for t in ["Public", "Private", "Isolated"]}
 
         # Calculate max icon rows using topology-based layout (exact count)
         max_icon_rows = 1
@@ -1693,7 +1698,7 @@ class DiagramV2:
 # ============================================================
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python generate_diagram_v2.py <config.json> [--list] [--vpc vpc-id1,vpc-id2,...] [--debug]")
+        print("Usage: python diagram_pptx.py <config.json> [--list] [--vpc vpc-id1,vpc-id2,...] [--debug]")
         print()
         print("Options:")
         print("  --list           List all VPCs in the config and exit")
@@ -1724,7 +1729,7 @@ def main():
         for v in sorted(vpcs, key=lambda x: -x["score"]):
             default_tag = " (default)" if v.get("is_default") else ""
             print(f"  {v['id']}  {v['name']:30s}  {v['cidr']:18s}  score={v['score']}{default_tag}")
-        print(f"\nUsage: python generate_diagram_v2.py {inp} --vpc {vpcs[0]['id']}")
+        print(f"\nUsage: python diagram_pptx.py {inp} --vpc {vpcs[0]['id']}")
         return
 
     # --vpc: draw specified VPCs

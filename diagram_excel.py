@@ -1,13 +1,13 @@
 """
-generate_diagram_excel.py: AWS Config JSON -> AWS-style Network Diagram (xlsx)
+diagram_excel.py: AWS Config JSON -> AWS-style Network Diagram (xlsx)
 
-Excel version of generate_diagram_v2.py.
+Excel version of diagram_pptx.py.
 Uses openpyxl for images + ZIP post-processing for shapes/connectors (DrawingML).
 
 No slide size limit — large AWS configurations can fit without clipping.
 
 Usage:
-    python generate_diagram_excel.py tabelog_aws_config.json [--list] [--vpc vpc-id1,id2]
+    python diagram_excel.py tabelog_aws_config.json [--list] [--vpc vpc-id1,id2]
 
 Version: 1.0.0
 Last Updated: 2026-02-12
@@ -25,7 +25,7 @@ from lxml import etree
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image as XlImage
 
-from generate_diagram import AWSConfigParser
+from aws_config_parser import AWSConfigParser
 
 # ============================================================
 # Icon paths
@@ -577,15 +577,20 @@ class DiagramExcel:
 
         desired = {}
         for t in ["Public", "Private", "Isolated"]:
-            desired[t] = max(max_icons[t] * icon_slot, min_col)
+            if t in active_tiers:
+                desired[t] = max(max_icons[t] * icon_slot, min_col)
+            else:
+                desired[t] = 0  # inactive tier gets no width
 
         total_desired = sum(desired.values())
         if total_desired > 0 and available > 0:
             scale = available / total_desired
             col_widths = {t: desired[t] * scale for t in desired}
         else:
-            equal = available / 3 if available > 0 else min_col
-            col_widths = {"Public": equal, "Private": equal, "Isolated": equal}
+            n_active = len(active_tiers) if active_tiers else 1
+            equal = available / n_active if available > 0 else min_col
+            col_widths = {t: (equal if t in active_tiers else 0)
+                          for t in ["Public", "Private", "Isolated"]}
 
         max_icon_rows = 1
         for tier in ["Public", "Private", "Isolated"]:
@@ -1776,7 +1781,7 @@ class DiagramExcel:
 # ============================================================
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python generate_diagram_excel.py <config.json> [--list] [--vpc vpc-id1,id2]")
+        print("Usage: python diagram_excel.py <config.json> [--list] [--vpc vpc-id1,id2]")
         sys.exit(1)
 
     inp = sys.argv[1]
@@ -1799,7 +1804,7 @@ def main():
         for v in sorted(vpcs, key=lambda x: -x["score"]):
             default_tag = " (default)" if v.get("is_default") else ""
             print(f"  {v['id']}  {v['name']:30s}  {v['cidr']:18s}  score={v['score']}{default_tag}")
-        print(f"\nUsage: python generate_diagram_excel.py {inp} --vpc {vpcs[0]['id']}")
+        print(f"\nUsage: python diagram_excel.py {inp} --vpc {vpcs[0]['id']}")
         return
 
     vpc_ids = None

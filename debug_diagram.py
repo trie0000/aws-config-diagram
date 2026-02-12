@@ -4,7 +4,7 @@ debug_diagram.py: Excel版の描画デバッグ用スクリプト
 Usage: python debug_diagram.py aws.json
 """
 import sys
-from generate_diagram import AWSConfigParser
+from aws_config_parser import AWSConfigParser
 
 if len(sys.argv) < 2:
     print("Usage: python debug_diagram.py <config.json>")

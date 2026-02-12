@@ -1,15 +1,13 @@
 """
-generate_diagram.py: AWS Config Snapshot JSON -> External Audit Network Diagram (pptx)
+aws_config_parser.py: AWS Config Snapshot JSON Parser + v1 Diagram Generator
 
-Usage:
-    pip install python-pptx
-    python generate_diagram.py sample_aws_config_snapshot.json
+Parses AWS Config Snapshot JSON and extracts VPC, Subnet, EC2, RDS,
+ALB, IGW, NAT, Security Group, and other AWS resource information.
 
-Output:
-    network_diagram.pptx (same directory as input JSON)
+AWSConfigParser class is shared by diagram_pptx.py and diagram_excel.py.
 
-Version: 1.0.0
-Last Updated: 2025-02-10
+Version: 1.1.0
+Last Updated: 2026-02-12
 """
 
 import json
@@ -2362,7 +2360,7 @@ class DiagramGenerator:
 # ============================================================
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python generate_diagram.py <aws_config_snapshot.json>")
+        print("Usage: python aws_config_parser.py <aws_config_snapshot.json>")
         print("Output: network_diagram.pptx (same directory as input)")
         sys.exit(1)
 

@@ -16,3 +16,5 @@ icons_tmp/
 
 # Generated outputs
 *.pptx
+*.xlsx
+~$*
