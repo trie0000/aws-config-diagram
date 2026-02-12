@@ -212,8 +212,15 @@ def _make_textbox_xml(shape_id, name, left, top, width, height,
 
 
 def _make_connector_xml(shape_id, name, x1, y1, x2, y2,
-                        color="ED7D1C", line_width_pt=1.5, arrow=True):
-    """Create a straight connector (arrow) in DrawingML."""
+                        color="ED7D1C", line_width_pt=1.5, arrow=True,
+                        start_shape_id=None, start_idx=None,
+                        end_shape_id=None, end_idx=None):
+    """Create a straight connector (arrow) in DrawingML.
+
+    Args:
+        start_shape_id/end_shape_id: shape ID to bind connector to (stCxn/endCxn)
+        start_idx/end_idx: connection point index (0=top, 1=left, 2=bottom, 3=right)
+    """
     left = min(x1, x2)
     top = min(y1, y2)
     w = abs(x2 - x1)
@@ -243,7 +250,17 @@ def _make_connector_xml(shape_id, name, x1, y1, x2, y2,
     cNvPr = etree.SubElement(nv, f"{{{XDR_NS}}}cNvPr")
     cNvPr.set("id", str(shape_id))
     cNvPr.set("name", name)
-    etree.SubElement(nv, f"{{{XDR_NS}}}cNvCxnSpPr")
+    cNvCxnSpPr = etree.SubElement(nv, f"{{{XDR_NS}}}cNvCxnSpPr")
+
+    # Bind connector to shapes
+    if start_shape_id is not None and start_idx is not None:
+        stCxn = etree.SubElement(cNvCxnSpPr, f"{{{A_NS}}}stCxn")
+        stCxn.set("id", str(start_shape_id))
+        stCxn.set("idx", str(start_idx))
+    if end_shape_id is not None and end_idx is not None:
+        endCxn = etree.SubElement(cNvCxnSpPr, f"{{{A_NS}}}endCxn")
+        endCxn.set("id", str(end_shape_id))
+        endCxn.set("idx", str(end_idx))
 
     spPr = etree.SubElement(cxnSp, f"{{{XDR_NS}}}spPr")
 
@@ -348,10 +365,11 @@ class DiagramExcel:
     def __init__(self, parser: AWSConfigParser):
         self.p = parser
         self.pos = {}       # key -> (cx, cy, hw, hh) EMU bounding box
-        self.shapes = {}    # key -> True (shape exists, for connector reference)
+        self.shapes = {}    # key -> shape_id (for connector binding)
         self._xml_elements = []  # DrawingML elements to inject
         self._shape_id = 100     # auto-incrementing shape ID
-        self._images = []        # (path, left_emu, top_emu, w_emu, h_emu) for openpyxl
+        self._images = []        # (path, left_emu, top_emu, w_emu, h_emu, key_or_none)
+        self._connectors = []    # (from_key, to_key, xml_element) for post-binding
 
     def _next_id(self):
         sid = self._shape_id
@@ -414,6 +432,7 @@ class DiagramExcel:
             self._xml_elements = []
             self._shape_id = 100
             self._images = []
+            self._connectors = []
             self._build(v)
 
         # Save Excel file
@@ -825,8 +844,9 @@ class DiagramExcel:
         y = int(sub_y + Inches(0.03))
         for icon_name, label, key in aux:
             ix = int(x + total_w / 2 - isz / 2)
+            sid = self._next_id()
             if icon_name in ICONS:
-                self._images.append((ICONS[icon_name], ix, y, int(isz), int(isz)))
+                self._images.append((ICONS[icon_name], ix, y, int(isz), int(isz), key))
             self._txt(x, int(y + isz + Inches(0.01)),
                       lbl_w, lbl_h, label, 5, True, C.TEXT, "ctr")
             icon_cx = int(x + total_w / 2)
@@ -834,7 +854,7 @@ class DiagramExcel:
             icon_hw = int(isz / 2)
             icon_hh = int(isz / 2)
             self.pos[key] = (icon_cx, icon_cy, icon_hw, icon_hh)
-            self.shapes[key] = True
+            self.shapes[key] = sid
             y += int(item_h + gap)
 
     # ==========================================================
@@ -1008,19 +1028,20 @@ class DiagramExcel:
             igw_x = int(L['vpc_x'] - igw_tw / 2)
             igw_y = gw_first_y
             igw_ix = int(igw_x + igw_tw / 2 - igw_isz / 2)
+            igw_key = f"igw_{igw['id']}"
+            igw_sid = self._next_id()
             if "igw" in ICONS:
                 self._images.append((ICONS["igw"], igw_ix, igw_y,
-                                     int(igw_isz), int(igw_isz)))
+                                     int(igw_isz), int(igw_isz), igw_key))
             self._txt(igw_x, int(igw_y + igw_isz + Inches(0.01)),
                       igw_tw, Inches(0.28), "Internet\nGateway",
                       6, True, C.TEXT, "ctr")
-            igw_key = f"igw_{igw['id']}"
             cx = int(igw_x + igw_tw / 2)
             cy = int(igw_y + igw_isz / 2)
             hw = int(igw_isz / 2)
             hh = int(igw_isz / 2)
             self.pos[igw_key] = (cx, cy, hw, hh)
-            self.shapes[igw_key] = True
+            self.shapes[igw_key] = igw_sid
 
         # AZ Rows with Subnet Columns
         for ai, az in enumerate(azs):
@@ -1061,21 +1082,22 @@ class DiagramExcel:
                                         - nat_tw - Inches(0.05))
                             nat_y = int(sub_y - nat_isz / 2)
                             nat_ix = int(nat_x + nat_tw / 2 - nat_isz / 2)
+                            nk = f"nat_{nat['id']}"
+                            nat_sid = self._next_id()
                             if "nat" in ICONS:
                                 self._images.append((ICONS["nat"], nat_ix, nat_y,
-                                                     int(nat_isz), int(nat_isz)))
+                                                     int(nat_isz), int(nat_isz), nk))
                             self._txt(nat_x,
                                       int(nat_y + nat_isz + Inches(0.01)),
                                       nat_tw, Inches(0.28),
                                       f"NAT GW\n{nat['public_ip']}",
                                       6, True, C.TEXT, "ctr")
-                            nk = f"nat_{nat['id']}"
                             cx = int(nat_x + nat_tw / 2)
                             cy = int(nat_y + nat_isz / 2)
                             hw = int(nat_isz / 2)
                             hh = int(nat_isz / 2)
                             self.pos[nk] = (cx, cy, hw, hh)
-                            self.shapes[nk] = True
+                            self.shapes[nk] = nat_sid
 
             # Private Subnet
             pvs = tiers.get("Private", {}).get(az, [])
@@ -1400,8 +1422,11 @@ class DiagramExcel:
     # Drawing Primitives (DrawingML XML)
     # ==========================================================
     def _box(self, x, y, w, h, fill, border, bw_pt=1.0, r_ratio=0.015):
-        # Convert ratio to DrawingML adj value (0-50000 range)
-        corner_radius = int(r_ratio * 50000 / 0.015) if r_ratio > 0 else None
+        # Convert ratio to DrawingML adj value
+        # In DrawingML, adj val 50000 = fully rounded (circle), val 0 = sharp corners
+        # PPTX adjustments[0] = 0.015 means 1.5% rounding
+        # Equivalent DrawingML: val = ratio * 50000 = 750
+        corner_radius = int(r_ratio * 50000) if r_ratio > 0 else None
         elem = _make_shape_xml(
             self._next_id(), "box",
             left=int(x), top=int(y), width=int(w), height=int(h),
@@ -1422,7 +1447,7 @@ class DiagramExcel:
     def _ilabel(self, x, y, icon, text, sz=8, bold=False, color=None):
         isz = Inches(0.22)
         if icon and icon in ICONS:
-            self._images.append((ICONS[icon], int(x), int(y), int(isz), int(isz)))
+            self._images.append((ICONS[icon], int(x), int(y), int(isz), int(isz), None))
             self._txt(int(x) + isz + Inches(0.04), int(y),
                       Inches(3.5), isz, text, sz, bold, color)
         else:
@@ -1434,8 +1459,9 @@ class DiagramExcel:
         tw = Inches(1.2)
         ix = int(x + tw / 2 - isz / 2)
 
+        sid = self._next_id()
         if icon in ICONS:
-            self._images.append((ICONS[icon], ix, int(y), int(isz), int(isz)))
+            self._images.append((ICONS[icon], ix, int(y), int(isz), int(isz), key))
 
         self._txt(int(x), int(y) + isz + Inches(0.01),
                   tw, Inches(0.28), label, 6, True, C.TEXT, "ctr")
@@ -1445,7 +1471,7 @@ class DiagramExcel:
         icon_hw = int(isz / 2)
         icon_hh = int(isz / 2)
         self.pos[key] = (icon_cx, icon_cy, icon_hw, icon_hh)
-        self.shapes[key] = True
+        self.shapes[key] = sid
 
     @staticmethod
     def _side_anchor(pos_data, target_cx, target_cy):
@@ -1477,6 +1503,31 @@ class DiagramExcel:
             else:
                 return cx, cy - hh
 
+    @staticmethod
+    def _cxn_idx(pos_data, target_cx, target_cy):
+        """Return connection point index (0=top, 1=left, 2=bottom, 3=right)."""
+        if len(pos_data) == 4:
+            cx, cy, hw, hh = pos_data
+        else:
+            cx, cy = pos_data
+            hw, hh = Inches(0.3), Inches(0.3)
+
+        dx = target_cx - cx
+        dy = target_cy - cy
+
+        if dx == 0 and dy == 0:
+            return 3  # right
+
+        if hw == 0:
+            hw = 1
+        if hh == 0:
+            hh = 1
+
+        if abs(dx) * hh > abs(dy) * hw:
+            return 3 if dx > 0 else 1  # right or left
+        else:
+            return 2 if dy > 0 else 0  # bottom or top
+
     def _arr(self, fk, tk, color, label=""):
         if fk not in self.pos or tk not in self.pos:
             return
@@ -1490,10 +1541,18 @@ class DiagramExcel:
         sx, sy = self._side_anchor(fp, tcx, tcy)
         ex, ey = self._side_anchor(tp, fcx, fcy)
 
+        # Get shape IDs and connection indices for binding
+        f_sid = self.shapes.get(fk)
+        t_sid = self.shapes.get(tk)
+        f_idx = self._cxn_idx(fp, tcx, tcy) if f_sid else None
+        t_idx = self._cxn_idx(tp, fcx, fcy) if t_sid else None
+
         elem = _make_connector_xml(
             self._next_id(), f"{fk}_to_{tk}",
             x1=int(sx), y1=int(sy), x2=int(ex), y2=int(ey),
-            color=color, line_width_pt=1.5, arrow=True)
+            color=color, line_width_pt=1.5, arrow=True,
+            start_shape_id=f_sid, start_idx=f_idx,
+            end_shape_id=t_sid, end_idx=t_idx)
         self._xml_elements.append(elem)
 
         if label:
@@ -1541,17 +1600,25 @@ class DiagramExcel:
         ws.title = "Network Diagram"
         ws.sheet_view.showGridLines = False
 
+        # Build key->shape_id mapping for images (for connector binding)
+        # We need to rewrite pic element IDs in post-processing
+        key_to_shape_id = {}  # key -> desired shape_id
+        image_pos_to_key = {}  # (left_emu, top_emu) -> key
+        for path, left_emu, top_emu, w_emu, h_emu, key in self._images:
+            if key and key in self.shapes:
+                key_to_shape_id[key] = self.shapes[key]
+                image_pos_to_key[(int(left_emu), int(top_emu))] = key
+
         # Add images via openpyxl API (they get proper rId references)
-        for path, left_emu, top_emu, w_emu, h_emu in self._images:
+        from openpyxl.drawing.spreadsheet_drawing import AbsoluteAnchor
+        from openpyxl.drawing.xdr import XDRPoint2D, XDRPositiveSize2D
+
+        for path, left_emu, top_emu, w_emu, h_emu, key in self._images:
             img = XlImage(path)
-            # openpyxl uses pixels; convert EMU to pixels (1 inch = 96 px)
             px_per_emu = 96.0 / EMU_PER_INCH
             img.width = int(w_emu * px_per_emu)
             img.height = int(h_emu * px_per_emu)
 
-            # Use absolute anchor positioning via EMU
-            from openpyxl.drawing.spreadsheet_drawing import AbsoluteAnchor
-            from openpyxl.drawing.xdr import XDRPoint2D, XDRPositiveSize2D
             img.anchor = AbsoluteAnchor(
                 pos=XDRPoint2D(int(left_emu), int(top_emu)),
                 ext=XDRPositiveSize2D(int(w_emu), int(h_emu)))
@@ -1563,30 +1630,50 @@ class DiagramExcel:
         os.close(tmp_fd)
         wb.save(tmp_path)
 
-        # Post-process: inject shapes and connectors into DrawingML
-        if self._xml_elements:
-            drawing_file = 'xl/drawings/drawing1.xml'
-            with zipfile.ZipFile(tmp_path, 'r') as zin:
-                # Check if drawing1.xml exists
-                if drawing_file not in zin.namelist():
-                    # No drawing — just copy as-is (shouldn't happen with images)
-                    os.rename(tmp_path, out_path)
-                    return
+        # Post-process: inject shapes/connectors AND rewrite pic IDs
+        drawing_file = 'xl/drawings/drawing1.xml'
+        with zipfile.ZipFile(tmp_path, 'r') as zin:
+            if drawing_file not in zin.namelist():
+                os.rename(tmp_path, out_path)
+                return
 
-                with zipfile.ZipFile(out_path, 'w', zipfile.ZIP_DEFLATED) as zout:
-                    for item in zin.infolist():
-                        data = zin.read(item.filename)
-                        if item.filename == drawing_file:
-                            root = etree.fromstring(data)
-                            for elem in self._xml_elements:
-                                root.append(elem)
-                            data = etree.tostring(
-                                root, xml_declaration=True,
-                                encoding="UTF-8", standalone=True)
-                        zout.writestr(item, data)
-            os.remove(tmp_path)
-        else:
-            os.rename(tmp_path, out_path)
+            with zipfile.ZipFile(out_path, 'w', zipfile.ZIP_DEFLATED) as zout:
+                for item in zin.infolist():
+                    data = zin.read(item.filename)
+                    if item.filename == drawing_file:
+                        root = etree.fromstring(data)
+
+                        # Rewrite pic element IDs to match self.shapes
+                        # openpyxl assigns sequential IDs (1, 2, 3...)
+                        # We need them to match the IDs used in stCxn/endCxn
+                        for abs_anchor in root.findall(
+                                f"{{{XDR_NS}}}absoluteAnchor"):
+                            pic = abs_anchor.find(f"{{{XDR_NS}}}pic")
+                            if pic is None:
+                                continue
+                            pos_el = abs_anchor.find(f"{{{XDR_NS}}}pos")
+                            if pos_el is None:
+                                continue
+                            px = int(pos_el.get("x", "0"))
+                            py = int(pos_el.get("y", "0"))
+                            key = image_pos_to_key.get((px, py))
+                            if key and key in key_to_shape_id:
+                                desired_id = key_to_shape_id[key]
+                                nv = pic.find(f"{{{XDR_NS}}}nvPicPr")
+                                if nv is not None:
+                                    cNvPr = nv.find(f"{{{XDR_NS}}}cNvPr")
+                                    if cNvPr is not None:
+                                        cNvPr.set("id", str(desired_id))
+
+                        # Append shapes and connectors
+                        for elem in self._xml_elements:
+                            root.append(elem)
+
+                        data = etree.tostring(
+                            root, xml_declaration=True,
+                            encoding="UTF-8", standalone=True)
+                    zout.writestr(item, data)
+        os.remove(tmp_path)
 
 
 # ============================================================
