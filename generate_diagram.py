@@ -161,6 +161,12 @@ class AWSConfigParser:
         self.by_id = {}
 
         for item in self.items:
+            # Normalize None -> empty dict
+            if item.get("configuration") is None:
+                item["configuration"] = {}
+            if item.get("relationships") is None:
+                item["relationships"] = []
+
             # Parse configuration if it's a JSON string
             cfg = item.get("configuration")
             if isinstance(cfg, str):
