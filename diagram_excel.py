@@ -347,6 +347,7 @@ class C:
     PRIV_BD  = "147EBA"
     GW_BG    = "FDF0E0"
     GW_BD    = "CCBB99"
+    AZ_BG    = "F8F8F8"
     AZ_BD    = "BBBBBB"
 
     ARROW_INET = "0073BB"
@@ -442,7 +443,7 @@ class DiagramExcel:
     # ==========================================================
     # Layout calculation (reused from v2 with minor adaptations)
     # ==========================================================
-    def _calc_layout(self, has_edge, has_peering, has_svless, has_infra,
+    def _calc_layout(self, has_edge, has_peering, has_bottom_row,
                      tiers, azs, res_ctx, gw_item_count=0,
                      icon_conns=None, all_icon_tiers=None):
         L = {}
@@ -488,16 +489,16 @@ class DiagramExcel:
 
         # --- Step 3: Height calculation (content-driven) ---
         bottom_row_h = Inches(0.65)
-        n_bottom = (1 if has_infra else 0) + (1 if has_svless else 0)
-        bottom_total = Inches(0.10) + bottom_row_h * n_bottom if n_bottom > 0 \
+        bottom_total = Inches(0.10) + bottom_row_h if has_bottom_row \
             else Inches(0.05)
 
         n_az = max(len(azs), 1)
         az_gap = Inches(0.15)
 
         # Minimum AZ height from icon rows
-        icon_row_h = Inches(0.75)
-        content_min_az = Inches(0.22 + 0.22 + 0.05) + icon_row_h * max(max_icon_rows, 1)
+        # 0.25 AZ header + 0.25 subnet header + icon rows + 0.20 bottom pad
+        icon_row_h = Inches(0.85)
+        content_min_az = Inches(0.25 + 0.25 + 0.20) + icon_row_h * max(max_icon_rows, 1)
 
         # Minimum AZ height from gateway column
         gw_min_h = Inches(0.15) + Inches(0.78) * max(gw_item_count, 1)
@@ -541,16 +542,9 @@ class DiagramExcel:
         L['iso_x'] = L['priv_x'] + iso_offset
         L['iso_w'] = col_widths['Isolated']
 
-        # --- Step 6: Bottom service rows ---
-        L['infra_y'] = L['vpc_y'] + L['vpc_h'] + Inches(0.15) \
-            if has_infra else None
-        if has_svless:
-            if has_infra:
-                L['svless_y'] = L['infra_y'] + bottom_row_h
-            else:
-                L['svless_y'] = L['vpc_y'] + L['vpc_h'] + Inches(0.15)
-        else:
-            L['svless_y'] = None
+        # --- Step 6: Bottom service row (single merged row) ---
+        L['bottom_y'] = L['vpc_y'] + L['vpc_h'] + Inches(0.15) \
+            if has_bottom_row else None
 
         return L
 
@@ -948,8 +942,9 @@ class DiagramExcel:
         if s3s:
             svless_items.append(("s3_bucket", "Amazon S3", "s3"))
 
-        has_svless = bool(svless_items)
-        has_infra = bool(infra_items)
+        # Merge infra + serverless into a single bottom row
+        bottom_items = infra_items + svless_items
+        has_bottom_row = bool(bottom_items)
 
         # Detect whether Isolated subnet exists
         has_isolated = any(
@@ -995,7 +990,7 @@ class DiagramExcel:
                         tier_name, ai, sub_list, res_ctx)
                     for _icon, _label, key in icons:
                         all_icon_tiers[key] = tier_name
-        for _icon, _label, key in infra_items + svless_items:
+        for _icon, _label, key in bottom_items:
             all_icon_tiers[key] = "external"
         for _icon, _label, key in orphan_db_items:
             all_icon_tiers[key] = "external"
@@ -1003,7 +998,7 @@ class DiagramExcel:
         # Widen right margin to fit orphan DB services
         gw_item_count = len(gw_before_alb) + len(albs) + len(gw_after_alb)
         L = self._calc_layout(has_edge, has_peering or has_orphan_db,
-                              has_svless, has_infra,
+                              has_bottom_row,
                               tiers, azs, res_ctx, gw_item_count,
                               icon_conns, all_icon_tiers)
 
@@ -1094,18 +1089,18 @@ class DiagramExcel:
             az_h = L['az_h']
             az_short = az.split("-")[-1].upper() if "-" in az else az.upper()
 
-            # AZ bounding box (dashed border, no fill)
+            # AZ bounding box (light fill + border)
             az_box_x = L['pub_x'] - Inches(0.05)
             az_box_w = (L['vpc_x'] + L['vpc_w'] - Inches(0.10)) - az_box_x
             self._box(az_box_x, row_y, az_box_w, az_h,
-                      None, C.AZ_BD, 0.5, r_ratio=0.005)
+                      C.AZ_BG, C.AZ_BD, 0.5, r_ratio=0.005)
             self._txt(az_box_x + Inches(0.05), row_y + Inches(0.02),
                       Inches(3.5), Inches(0.20),
                       f"Availability Zone {az_short}", 8, True, C.TEXT_G)
 
-            sub_y = row_y + Inches(0.22)
-            sub_h = az_h - Inches(0.27)
-            icon_y_base = sub_y + Inches(0.22)
+            sub_y = row_y + Inches(0.25)
+            sub_h = az_h - Inches(0.30)
+            icon_y_base = sub_y + Inches(0.25)
 
             # Public Subnet
             ps = tiers.get("Public", {}).get(az, [])
@@ -1208,19 +1203,13 @@ class DiagramExcel:
                     self._ibox(ext_x, int(start_y + edge_gap * ei),
                                icon, label, key)
 
-        # VPC-external services (below VPC)
-        bottom_svc_gap = Inches(1.40)
-        bottom_start_x = L['vpc_x'] + Inches(0.2)
-
-        if infra_items and L['infra_y'] is not None:
-            for idx, (icon, label, key) in enumerate(infra_items):
+        # VPC-external services (below VPC, single row)
+        if bottom_items and L['bottom_y'] is not None:
+            bottom_svc_gap = Inches(1.40)
+            bottom_start_x = L['vpc_x'] + Inches(0.2)
+            for idx, (icon, label, key) in enumerate(bottom_items):
                 self._ibox(int(bottom_start_x + bottom_svc_gap * idx),
-                           int(L['infra_y']), icon, label, key)
-
-        if has_svless and L['svless_y'] is not None:
-            for idx, (icon, label, key) in enumerate(svless_items):
-                self._ibox(int(bottom_start_x + bottom_svc_gap * idx),
-                           int(L['svless_y']), icon, label, key)
+                           int(L['bottom_y']), icon, label, key)
 
         # Orphan DB services (RDS/ElastiCache/Redshift outside VPC)
         if orphan_db_items:
