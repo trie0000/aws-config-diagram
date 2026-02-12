@@ -72,6 +72,7 @@ class C:
     PRIV_BD  = RGBColor(0x14, 0x7E, 0xBA)
     GW_BG    = RGBColor(0xFD, 0xF0, 0xE0)
     GW_BD    = RGBColor(0xCC, 0xBB, 0x99)
+    AZ_BD    = RGBColor(0xBB, 0xBB, 0xBB)
 
     ARROW_INET = RGBColor(0x00, 0x73, 0xBB)
     ARROW_AWS  = RGBColor(0xED, 0x7D, 0x1C)
@@ -405,7 +406,14 @@ class DiagramV2:
                     key = f"ec2_{inst['id']}"
                     if key not in seen_keys:
                         seen_keys.add(key)
-                        icons.append(("ec2", f"EC2\n{inst['name']}", key))
+                        lbl = f"EC2\n{inst['name']}"
+                        ip = inst.get('private_ip', '')
+                        pub = inst.get('public_ip')
+                        if pub:
+                            lbl += f"\n{pub}"
+                        elif ip:
+                            lbl += f"\n{ip}"
+                        icons.append(("ec2", lbl, key))
 
         elif tier == "Private":
             # EC2 — direct data-path
@@ -414,7 +422,11 @@ class DiagramV2:
                     key = f"ec2_{inst['id']}"
                     if key not in seen_keys:
                         seen_keys.add(key)
-                        icons.append(("ec2", f"EC2\n{inst['name']}", key))
+                        lbl = f"EC2\n{inst['name']}"
+                        ip = inst.get('private_ip', '')
+                        if ip:
+                            lbl += f"\n{ip}"
+                        icons.append(("ec2", lbl, key))
             # Lambda (VPC-attached) — direct data-path
             for lf in ctx['lambdas_vpc']:
                 if sub_ids & set(lf.get("vpc_subnet_ids", [])):
@@ -965,6 +977,12 @@ class DiagramV2:
         if alb_y_pos is None:
             alb_y_pos = gw_first_y
 
+        # Inbound ports (from SGs allowing 0.0.0.0/0)
+        inet_sgs = self.p.get_internet_facing_sgs()
+        inet_ports = sorted(set(
+            f"{isg.get('protocol','tcp').upper()}({isg['port']})"
+            for isg in inet_sgs if isg.get('port')))
+
         # ===== IGW straddling VPC left border =====
         # Align Y with first GW column service so arrow is horizontal
         if igw:
@@ -977,8 +995,11 @@ class DiagramV2:
             if "igw" in ICONS:
                 igw_pic = sl.shapes.add_picture(ICONS["igw"], igw_ix, igw_y,
                                                 igw_isz, igw_isz)
+            igw_lbl = "Internet\nGateway"
+            if inet_ports:
+                igw_lbl += "\n" + ",".join(inet_ports[:3])
             self._txt(sl, igw_x, int(igw_y + igw_isz + Inches(0.01)),
-                      igw_tw, Inches(0.28), "Internet\nGateway",
+                      igw_tw, Inches(0.36), igw_lbl,
                       6, True, C.TEXT, PP_ALIGN.CENTER)
             igw_key = f"igw_{igw['id']}"
             cx = int(igw_x + igw_tw / 2)
@@ -994,6 +1015,12 @@ class DiagramV2:
             row_y = L['az_ys'][ai] if ai < len(L['az_ys']) else L['az_ys'][-1]
             az_h = L['az_h']
             az_short = az.split("-")[-1].upper() if "-" in az else az.upper()
+
+            # AZ bounding box (no fill, gray border)
+            az_box_x = L['pub_x'] - Inches(0.05)
+            az_box_w = (L['vpc_x'] + L['vpc_w'] - Inches(0.10)) - az_box_x
+            self._box(sl, az_box_x, row_y, az_box_w, az_h,
+                      None, C.AZ_BD, Pt(0.5), 0.005)
 
             # AZ label (placed to the right of gateway column)
             self._txt(sl, L['pub_x'], row_y + Inches(0.02),
@@ -1436,8 +1463,11 @@ class DiagramV2:
     def _box(self, sl, x, y, w, h, fill, border, bw=Pt(1), r=0.015):
         s = sl.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
                                 int(x), int(y), int(w), int(h))
-        s.fill.solid()
-        s.fill.fore_color.rgb = fill
+        if fill is not None:
+            s.fill.solid()
+            s.fill.fore_color.rgb = fill
+        else:
+            s.fill.background()
         s.line.color.rgb = border
         s.line.width = bw
         s.adjustments[0] = r
@@ -1484,8 +1514,10 @@ class DiagramV2:
         if icon in ICONS:
             pic = sl.shapes.add_picture(ICONS[icon], ix, int(y), isz, isz)
 
+        n_lines = label.count("\n") + 1
+        lbl_h = Inches(0.13 * n_lines + 0.02)
         self._txt(sl, int(x), int(y) + isz + Inches(0.01),
-                  tw, Inches(0.28), label, 6, True, C.TEXT, PP_ALIGN.CENTER)
+                  tw, lbl_h, label, 6, True, C.TEXT, PP_ALIGN.CENTER)
 
         # Bounding box based on ICON size only (not text label width)
         icon_cx = int(x + tw / 2)

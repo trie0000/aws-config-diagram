@@ -347,6 +347,7 @@ class C:
     PRIV_BD  = "147EBA"
     GW_BG    = "FDF0E0"
     GW_BD    = "CCBB99"
+    AZ_BD    = "BBBBBB"
 
     ARROW_INET = "0073BB"
     ARROW_AWS  = "ED7D1C"
@@ -612,7 +613,14 @@ class DiagramExcel:
                     key = f"ec2_{inst['id']}"
                     if key not in seen_keys:
                         seen_keys.add(key)
-                        icons.append(("ec2", f"EC2\n{inst['name']}", key))
+                        lbl = f"EC2\n{inst['name']}"
+                        ip = inst.get('private_ip', '')
+                        pub = inst.get('public_ip')
+                        if pub:
+                            lbl += f"\n{pub}"
+                        elif ip:
+                            lbl += f"\n{ip}"
+                        icons.append(("ec2", lbl, key))
 
         elif tier == "Private":
             for sub in subs:
@@ -620,7 +628,11 @@ class DiagramExcel:
                     key = f"ec2_{inst['id']}"
                     if key not in seen_keys:
                         seen_keys.add(key)
-                        icons.append(("ec2", f"EC2\n{inst['name']}", key))
+                        lbl = f"EC2\n{inst['name']}"
+                        ip = inst.get('private_ip', '')
+                        if ip:
+                            lbl += f"\n{ip}"
+                        icons.append(("ec2", lbl, key))
             for lf in ctx['lambdas_vpc']:
                 if sub_ids & set(lf.get("vpc_subnet_ids", [])):
                     key = f"lambda_{lf['id']}"
@@ -1048,6 +1060,12 @@ class DiagramExcel:
         if alb_y_pos is None:
             alb_y_pos = gw_first_y
 
+        # Inbound ports (from SGs allowing 0.0.0.0/0)
+        inet_sgs = self.p.get_internet_facing_sgs()
+        inet_ports = sorted(set(
+            f"{isg.get('protocol','tcp').upper()}({isg['port']})"
+            for isg in inet_sgs if isg.get('port')))
+
         # IGW straddling VPC left border
         if igw:
             igw_isz = Inches(0.42)
@@ -1060,9 +1078,12 @@ class DiagramExcel:
             if "igw" in ICONS:
                 self._images.append((ICONS["igw"], igw_ix, igw_y,
                                      int(igw_isz), int(igw_isz), igw_key))
+            igw_lbl = "Internet\nGateway"
+            if inet_ports:
+                igw_lbl += "\n" + ",".join(inet_ports[:3])
             self._txt(igw_x, int(igw_y + igw_isz + Inches(0.01)),
-                      igw_tw, Inches(0.28), "Internet\nGateway",
-                      6, True, C.TEXT, "ctr")
+                      igw_tw, Inches(0.36), igw_lbl,
+                      5, True, C.TEXT, "ctr")
             cx = int(igw_x + igw_tw / 2)
             cy = int(igw_y + igw_isz / 2)
             hw = int(igw_isz / 2)
@@ -1076,9 +1097,14 @@ class DiagramExcel:
             az_h = L['az_h']
             az_short = az.split("-")[-1].upper() if "-" in az else az.upper()
 
-            self._txt(L['pub_x'], row_y + Inches(0.02),
-                      Inches(3.5), Inches(0.2),
-                      f"Availability Zone {az_short}", 8, True, C.TEXT_G)
+            # AZ bounding box (dashed border, no fill)
+            az_box_x = L['pub_x'] - Inches(0.05)
+            az_box_w = (L['vpc_x'] + L['vpc_w'] - Inches(0.10)) - az_box_x
+            self._box(az_box_x, row_y, az_box_w, az_h,
+                      None, C.AZ_BD, 0.5, r_ratio=0.005)
+            self._txt(az_box_x + Inches(0.05), row_y + Inches(0.02),
+                      Inches(3.5), Inches(0.18),
+                      f"Availability Zone {az_short}", 7, True, C.TEXT_G)
 
             sub_y = row_y + Inches(0.22)
             sub_h = az_h - Inches(0.27)
@@ -1475,7 +1501,8 @@ class DiagramExcel:
             self._next_id(), "box",
             left=int(x), top=int(y), width=int(w), height=int(h),
             fill_color=fill, line_color=border, line_width_pt=bw_pt,
-            corner_radius=corner_radius)
+            corner_radius=corner_radius,
+            no_fill=(fill is None))
         self._xml_elements.append((self.Z_BOX, elem))
 
     def _txt(self, x, y, w, h, text, sz=10, bold=False, color=None,
@@ -1508,8 +1535,10 @@ class DiagramExcel:
         if icon in ICONS:
             self._images.append((ICONS[icon], ix, int(y), int(isz), int(isz), key))
 
+        n_lines = label.count("\n") + 1
+        lbl_h = Inches(0.13 * n_lines + 0.02)
         self._txt(int(x), int(y) + isz + Inches(0.01),
-                  tw, Inches(0.28), label, 6, True, C.TEXT, "ctr")
+                  tw, lbl_h, label, 5, True, C.TEXT, "ctr")
 
         icon_cx = int(x + tw / 2)
         icon_cy = int(y + isz / 2)
