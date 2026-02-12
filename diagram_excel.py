@@ -917,33 +917,43 @@ class DiagramExcel:
         has_edge = bool(r53_zones or cf_dists or api_gws)
         has_peering = bool(peerings)
 
+        vpce = self.p.get_vpc_endpoints_for_vpc(vpc["id"])
+
         gw_before_alb = []
         if waf:
             gw_before_alb.append(("waf", "AWS WAF", "waf"))
         gw_after_alb = []
 
-        infra_items = []
-        if kms_keys:
-            infra_items.append(("kms", "AWS KMS", "kms"))
+        # Support services: small badges in zone corners (not in data path)
+        # AWS Cloud right-upper corner
+        cloud_badges = []
         if ct_trails:
-            infra_items.append(("cloudtrail", "CloudTrail", "cloudtrail"))
+            cloud_badges.append(("cloudtrail", "CloudTrail", "cloudtrail"))
         if cw_alarms:
-            infra_items.append(("cloudwatch", "CloudWatch", "cloudwatch"))
+            cloud_badges.append(("cloudwatch", "CloudWatch", "cloudwatch"))
 
-        svless_items = []
+        # VPC right-upper corner
+        vpc_badges = []
+        if kms_keys:
+            vpc_badges.append(("kms", "KMS", "kms"))
+        if vpce:
+            # Group VPC endpoints by service name
+            vpce_names = sorted(set(e["service"] for e in vpce))
+            for vn in vpce_names[:4]:
+                vpc_badges.append(("vpc_endpoint", f"VPCE\n{vn}", f"vpce_{vn}"))
+
+        # Data-path serverless services (below VPC)
+        bottom_items = []
         if lambdas_serverless:
-            svless_items.append(("lambda", "Lambda", "lambda_svless"))
+            bottom_items.append(("lambda", "Lambda", "lambda_svless"))
         if dynamo_tables:
-            svless_items.append(("dynamodb", "DynamoDB", "dynamodb"))
+            bottom_items.append(("dynamodb", "DynamoDB", "dynamodb"))
         if sqs_queues:
-            svless_items.append(("sqs", "Amazon SQS", "sqs"))
+            bottom_items.append(("sqs", "Amazon SQS", "sqs"))
         if sns_topics:
-            svless_items.append(("sns", "Amazon SNS", "sns"))
+            bottom_items.append(("sns", "Amazon SNS", "sns"))
         if s3s:
-            svless_items.append(("s3_bucket", "Amazon S3", "s3"))
-
-        # Merge infra + serverless into a single bottom row
-        bottom_items = infra_items + svless_items
+            bottom_items.append(("s3_bucket", "Amazon S3", "s3"))
         has_bottom_row = bool(bottom_items)
 
         # Detect whether Isolated subnet exists
@@ -1018,6 +1028,15 @@ class DiagramExcel:
                      L['cloud_y'] + Inches(0.05),
                      "region", f"Region: {vpc['region']}", 8, color=C.TEXT_G)
 
+        # AWS Cloud support badges (right-upper corner)
+        if cloud_badges:
+            badge_x = int(L['cloud_x'] + L['cloud_w'] - Inches(0.30)
+                          - len(cloud_badges) * Inches(0.90))
+            badge_y = int(L['cloud_y'] + Inches(0.02))
+            for bi, (icon, label, key) in enumerate(cloud_badges):
+                bx = int(badge_x + bi * Inches(0.90))
+                self._ilabel(bx, badge_y, icon, label, 7, color=C.TEXT_G)
+
         # VPC box
         self._box(L['vpc_x'], L['vpc_y'], L['vpc_w'], L['vpc_h'],
                   C.VPC_BG, C.VPC_BD, 2.0)
@@ -1025,6 +1044,15 @@ class DiagramExcel:
                      L['vpc_y'] + Inches(0.05),
                      "vpc_icon", f"VPC  {vpc['cidr']}", 9, True,
                      color=C.VPC_BD)
+
+        # VPC support badges (right-upper corner)
+        if vpc_badges:
+            badge_x = int(L['vpc_x'] + L['vpc_w'] - Inches(0.30)
+                          - len(vpc_badges) * Inches(0.90))
+            badge_y = int(L['vpc_y'] + Inches(0.02))
+            for bi, (icon, label, key) in enumerate(vpc_badges):
+                bx = int(badge_x + bi * Inches(0.90))
+                self._ilabel(bx, badge_y, icon, label, 7, color=C.TEXT_G)
 
         # Gateway Column
         self._box(L['gw_x'], L['gw_y'], L['gw_w'], L['gw_h'],

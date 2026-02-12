@@ -90,6 +90,8 @@ class AWSConfigParser:
         "AWS::EC2::Subnet",
         "AWS::EC2::InternetGateway",
         "AWS::EC2::NatGateway",
+        "AWS::EC2::VPCEndpoint",
+        "AWS::EC2::NetworkInterface",
         "AWS::EC2::Instance",
         "AWS::EC2::SecurityGroup",
         "AWS::EC2::RouteTable",
@@ -989,6 +991,45 @@ class AWSConfigParser:
                     "egress": cfg.get("ipPermissionsEgress", []),
                 })
         return sgs
+
+    def get_vpc_endpoints_for_vpc(self, vpc_id):
+        """Get VPC Endpoints (Gateway & Interface types) for a VPC."""
+        s2v = self._build_subnet_vpc_map()
+        endpoints = []
+        for item in self.by_type.get("AWS::EC2::VPCEndpoint", []):
+            cfg = item.get("configuration", {})
+            if not isinstance(cfg, dict):
+                cfg = {}
+            item_vpc = cfg.get("vpcId", "")
+            if not item_vpc:
+                item_vpc = self._get_related_vpc(item)
+            # Fallback: match via subnet IDs
+            if not item_vpc:
+                for sid in cfg.get("subnetIds", []):
+                    if sid in s2v:
+                        item_vpc = s2v[sid]
+                        break
+            # Fallback: relationships
+            if not item_vpc:
+                for rel in item.get("relationships", []):
+                    if rel.get("resourceType") == "AWS::EC2::VPC":
+                        item_vpc = rel.get("resourceId", "")
+                        break
+            if item_vpc != vpc_id:
+                continue
+            svc_name = cfg.get("serviceName", "")
+            # Extract short service name: com.amazonaws.ap-northeast-1.s3 -> s3
+            short = svc_name.rsplit(".", 1)[-1] if svc_name else ""
+            ep_type = cfg.get("vpcEndpointType", "Gateway")
+            endpoints.append({
+                "id": item["resourceId"],
+                "service": short,
+                "full_service": svc_name,
+                "type": ep_type,
+                "subnet_ids": cfg.get("subnetIds", []),
+                "route_table_ids": cfg.get("routeTableIds", []),
+            })
+        return endpoints
 
     def get_peering_connections(self):
         peerings = []

@@ -41,7 +41,12 @@ for vpc in vpcs:
     albs = p.get_albs_for_vpc(vid)
     print(f"\n--- ALBs ({len(albs)}) ---")
     for a in albs:
-        print(f"  {a['id'][:60]}")
+        print(f"  {a['id'][:40]}  name={a.get('name','')}  scheme={a.get('scheme','')}")
+
+    vpce = p.get_vpc_endpoints_for_vpc(vid)
+    print(f"\n--- VPC Endpoints ({len(vpce)}) ---")
+    for e in vpce:
+        print(f"  {e['id'][:40]}  type={e['type']}  service={e['service']}")
 
     igw = p.get_igw_for_vpc(vid)
     print(f"\n--- IGW: {igw if igw else 'None'} ---")
