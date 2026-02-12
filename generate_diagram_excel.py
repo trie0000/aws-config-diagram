@@ -863,7 +863,7 @@ class DiagramExcel:
             if icon_name in ICONS:
                 self._images.append((ICONS[icon_name], ix, y, int(isz), int(isz), key))
             self._txt(x, int(y + isz + Inches(0.01)),
-                      lbl_w, lbl_h, label, 5, True, C.TEXT, "ctr")
+                      lbl_w, lbl_h, label, 6, True, C.TEXT, "ctr")
             icon_cx = int(x + total_w / 2)
             icon_cy = int(y + isz / 2)
             icon_hw = int(isz / 2)
@@ -1082,8 +1082,8 @@ class DiagramExcel:
             if inet_ports:
                 igw_lbl += "\n" + ",".join(inet_ports[:3])
             self._txt(igw_x, int(igw_y + igw_isz + Inches(0.01)),
-                      igw_tw, Inches(0.36), igw_lbl,
-                      5, True, C.TEXT, "ctr")
+                      igw_tw, Inches(0.42), igw_lbl,
+                      7, True, C.TEXT, "ctr")
             cx = int(igw_x + igw_tw / 2)
             cy = int(igw_y + igw_isz / 2)
             hw = int(igw_isz / 2)
@@ -1103,8 +1103,8 @@ class DiagramExcel:
             self._box(az_box_x, row_y, az_box_w, az_h,
                       None, C.AZ_BD, 0.5, r_ratio=0.005)
             self._txt(az_box_x + Inches(0.05), row_y + Inches(0.02),
-                      Inches(3.5), Inches(0.18),
-                      f"Availability Zone {az_short}", 7, True, C.TEXT_G)
+                      Inches(3.5), Inches(0.20),
+                      f"Availability Zone {az_short}", 8, True, C.TEXT_G)
 
             sub_y = row_y + Inches(0.22)
             sub_h = az_h - Inches(0.27)
@@ -1118,7 +1118,7 @@ class DiagramExcel:
                           C.PUB_BG, C.PUB_BD)
                 self._ilabel(L['pub_x'] + Inches(0.05), sub_y + Inches(0.03),
                              "public_subnet",
-                             f"Public subnet  {cidr_label}", 7, color=C.PUB_BD)
+                             f"Public subnet  {cidr_label}", 8, color=C.PUB_BD)
                 icons, aux = self._collect_subnet_icons("Public", ai, ps, res_ctx)
                 self._place_icons_grid(icons, L['pub_x'], L['pub_w'],
                                        icon_y_base, "Public",
@@ -1142,9 +1142,9 @@ class DiagramExcel:
                                                      int(nat_isz), int(nat_isz), nk))
                             self._txt(nat_x,
                                       int(nat_y + nat_isz + Inches(0.01)),
-                                      nat_tw, Inches(0.28),
+                                      nat_tw, Inches(0.32),
                                       f"NAT GW\n{nat['public_ip']}",
-                                      6, True, C.TEXT, "ctr")
+                                      7, True, C.TEXT, "ctr")
                             cx = int(nat_x + nat_tw / 2)
                             cy = int(nat_y + nat_isz / 2)
                             hw = int(nat_isz / 2)
@@ -1160,7 +1160,7 @@ class DiagramExcel:
                           C.PRIV_BG, C.PRIV_BD)
                 self._ilabel(L['priv_x'] + Inches(0.05), sub_y + Inches(0.03),
                              "private_subnet",
-                             f"Private subnet  {cidr_label}", 7, color=C.PRIV_BD)
+                             f"Private subnet  {cidr_label}", 8, color=C.PRIV_BD)
                 icons, aux = self._collect_subnet_icons("Private", ai, pvs, res_ctx)
                 self._place_icons_grid(icons, L['priv_x'], L['priv_w'],
                                        icon_y_base, "Private",
@@ -1175,7 +1175,7 @@ class DiagramExcel:
                           C.PRIV_BG, C.PRIV_BD)
                 self._ilabel(L['iso_x'] + Inches(0.05), sub_y + Inches(0.03),
                              "private_subnet",
-                             f"Private subnet  {cidr_label}", 7, color=C.PRIV_BD)
+                             f"Private subnet  {cidr_label}", 8, color=C.PRIV_BD)
                 icons, aux = self._collect_subnet_icons("Isolated", ai, isos,
                                                         res_ctx)
                 self._place_icons_grid(icons, L['iso_x'], L['iso_w'],
@@ -1536,9 +1536,9 @@ class DiagramExcel:
             self._images.append((ICONS[icon], ix, int(y), int(isz), int(isz), key))
 
         n_lines = label.count("\n") + 1
-        lbl_h = Inches(0.13 * n_lines + 0.02)
+        lbl_h = Inches(0.15 * n_lines + 0.02)
         self._txt(int(x), int(y) + isz + Inches(0.01),
-                  tw, lbl_h, label, 5, True, C.TEXT, "ctr")
+                  tw, lbl_h, label, 7, True, C.TEXT, "ctr")
 
         icon_cx = int(x + tw / 2)
         icon_cy = int(y + isz / 2)
@@ -1642,7 +1642,7 @@ class DiagramExcel:
             else:
                 my -= int(Inches(0.18))
             self._txt(mx - int(Inches(0.5)), my - int(Inches(0.1)),
-                      Inches(1.1), Inches(0.22), label, 6, True, color, "ctr",
+                      Inches(1.1), Inches(0.22), label, 7, True, color, "ctr",
                       z_layer=self.Z_ARROWLBL)
 
     def _legend(self, x, y):

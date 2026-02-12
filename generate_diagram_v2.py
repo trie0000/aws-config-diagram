@@ -758,7 +758,7 @@ class DiagramV2:
                                                 isz, isz)
             # label below icon
             self._txt(sl, x, int(y + isz + Inches(0.01)),
-                      lbl_w, lbl_h, label, 5, True, C.TEXT, PP_ALIGN.CENTER)
+                      lbl_w, lbl_h, label, 6, True, C.TEXT, PP_ALIGN.CENTER)
             # register pos for potential arrows
             icon_cx = int(x + total_w / 2)
             icon_cy = int(y + isz / 2)
@@ -999,8 +999,8 @@ class DiagramV2:
             if inet_ports:
                 igw_lbl += "\n" + ",".join(inet_ports[:3])
             self._txt(sl, igw_x, int(igw_y + igw_isz + Inches(0.01)),
-                      igw_tw, Inches(0.36), igw_lbl,
-                      6, True, C.TEXT, PP_ALIGN.CENTER)
+                      igw_tw, Inches(0.42), igw_lbl,
+                      7, True, C.TEXT, PP_ALIGN.CENTER)
             igw_key = f"igw_{igw['id']}"
             cx = int(igw_x + igw_tw / 2)
             cy = int(igw_y + igw_isz / 2)
@@ -1024,8 +1024,8 @@ class DiagramV2:
 
             # AZ label (placed to the right of gateway column)
             self._txt(sl, L['pub_x'], row_y + Inches(0.02),
-                      Inches(3.5), Inches(0.2),
-                      f"Availability Zone {az_short}", 8, True, C.TEXT_G)
+                      Inches(3.5), Inches(0.22),
+                      f"Availability Zone {az_short}", 9, True, C.TEXT_G)
 
             sub_y = row_y + Inches(0.22)
             sub_h = az_h - Inches(0.27)
@@ -1042,7 +1042,7 @@ class DiagramV2:
                 self._ilabel(sl, L['pub_x'] + Inches(0.05),
                              sub_y + Inches(0.03),
                              "public_subnet",
-                             f"Public subnet  {cidr_label}", 7,
+                             f"Public subnet  {cidr_label}", 8,
                              color=C.PUB_BD)
                 icons, aux = self._collect_subnet_icons("Public", ai, ps,
                                                         res_ctx)
@@ -1072,9 +1072,9 @@ class DiagramV2:
                                     nat_isz, nat_isz)
                             self._txt(sl, nat_x,
                                       int(nat_y + nat_isz + Inches(0.01)),
-                                      nat_tw, Inches(0.28),
+                                      nat_tw, Inches(0.32),
                                       f"NAT GW\n{nat['public_ip']}",
-                                      6, True, C.TEXT, PP_ALIGN.CENTER)
+                                      7, True, C.TEXT, PP_ALIGN.CENTER)
                             nk = f"nat_{nat['id']}"
                             cx = int(nat_x + nat_tw / 2)
                             cy = int(nat_y + nat_isz / 2)
@@ -1093,7 +1093,7 @@ class DiagramV2:
                 self._ilabel(sl, L['priv_x'] + Inches(0.05),
                              sub_y + Inches(0.03),
                              "private_subnet",
-                             f"Private subnet  {cidr_label}", 7,
+                             f"Private subnet  {cidr_label}", 8,
                              color=C.PRIV_BD)
                 icons, aux = self._collect_subnet_icons("Private", ai, pvs,
                                                         res_ctx)
@@ -1112,7 +1112,7 @@ class DiagramV2:
                 self._ilabel(sl, L['iso_x'] + Inches(0.05),
                              sub_y + Inches(0.03),
                              "private_subnet",
-                             f"Private subnet  {cidr_label}", 7,
+                             f"Private subnet  {cidr_label}", 8,
                              color=C.PRIV_BD)
                 icons, aux = self._collect_subnet_icons("Isolated", ai, isos,
                                                         res_ctx)
@@ -1515,9 +1515,9 @@ class DiagramV2:
             pic = sl.shapes.add_picture(ICONS[icon], ix, int(y), isz, isz)
 
         n_lines = label.count("\n") + 1
-        lbl_h = Inches(0.13 * n_lines + 0.02)
+        lbl_h = Inches(0.15 * n_lines + 0.02)
         self._txt(sl, int(x), int(y) + isz + Inches(0.01),
-                  tw, lbl_h, label, 6, True, C.TEXT, PP_ALIGN.CENTER)
+                  tw, lbl_h, label, 7, True, C.TEXT, PP_ALIGN.CENTER)
 
         # Bounding box based on ICON size only (not text label width)
         icon_cx = int(x + tw / 2)
@@ -1654,7 +1654,7 @@ class DiagramV2:
                 my -= int(Inches(0.18))
 
             self._txt(sl, mx - int(Inches(0.5)), my - int(Inches(0.1)),
-                      Inches(1.1), Inches(0.22), label, 6, True, color,
+                      Inches(1.1), Inches(0.22), label, 7, True, color,
                       PP_ALIGN.CENTER)
 
     def _legend(self, sl, x, y):

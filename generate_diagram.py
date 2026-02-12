@@ -215,10 +215,35 @@ class AWSConfigParser:
         vpcs = []
         for item in self.by_type["AWS::EC2::VPC"]:
             cfg = item.get("configuration", {})
+            if not isinstance(cfg, dict):
+                cfg = {}
+            cidr = cfg.get("cidrBlock", "")
+            if not cidr:
+                # Try supplementaryConfiguration
+                supp = item.get("supplementaryConfiguration", {})
+                if isinstance(supp, dict):
+                    cidr = supp.get("cidrBlock", "")
+                    if not cidr:
+                        assocs = supp.get("cidrBlockAssociationSet", [])
+                        if isinstance(assocs, str):
+                            try:
+                                assocs = json.loads(assocs)
+                            except Exception:
+                                assocs = []
+                        for a in assocs:
+                            if isinstance(a, dict):
+                                cb = a.get("cidrBlock", "")
+                                if cb:
+                                    cidr = cb
+                                    break
+            if not cidr:
+                rn = item.get("resourceName", "")
+                if "/" in rn:
+                    cidr = rn
             vpcs.append({
                 "id": item["resourceId"],
                 "name": item.get("tags", {}).get("Name", item["resourceId"]),
-                "cidr": cfg.get("cidrBlock", ""),
+                "cidr": cidr,
                 "region": item.get("awsRegion", ""),
                 "is_default": cfg.get("isDefault", False),
             })
@@ -685,10 +710,61 @@ class AWSConfigParser:
 
         return rds2vpc
 
+    def _build_subnet_cidr_map(self):
+        """Build subnet -> CIDR map from NetworkInterface configurations.
+
+        When Subnet configuration is ResourceNotRecorded, we can infer
+        the subnet CIDR from NetworkInterface privateIpAddress + subnetId.
+        This is a heuristic — we collect all private IPs per subnet and
+        try to guess the CIDR from the common prefix.
+        """
+        subnet_ips = defaultdict(list)
+        for item in self.by_type.get("AWS::EC2::NetworkInterface", []):
+            cfg = item.get("configuration", {})
+            if not isinstance(cfg, dict):
+                cfg = {}
+            sub_id = cfg.get("subnetId", "")
+            if not sub_id:
+                continue
+            # Collect private IPs
+            priv_addrs = cfg.get("privateIpAddresses", [])
+            for pa in priv_addrs:
+                if isinstance(pa, dict):
+                    ip = pa.get("privateIpAddress", "")
+                    if ip:
+                        subnet_ips[sub_id].append(ip)
+            # Also try top-level privateIpAddress
+            pip = cfg.get("privateIpAddress", "")
+            if pip and pip not in subnet_ips[sub_id]:
+                subnet_ips[sub_id].append(pip)
+
+        # Also collect from EC2 instances
+        for item in self.by_type.get("AWS::EC2::Instance", []):
+            cfg = item.get("configuration", {})
+            if not isinstance(cfg, dict):
+                cfg = {}
+            sub_id = cfg.get("subnetId", "")
+            pip = cfg.get("privateIpAddress", "")
+            if sub_id and pip:
+                if pip not in subnet_ips[sub_id]:
+                    subnet_ips[sub_id].append(pip)
+
+        # Try to guess CIDR from collected IPs
+        cidr_map = {}
+        for sub_id, ips in subnet_ips.items():
+            if ips:
+                # Use first IP as representative; guess /24 as common default
+                ip = ips[0]
+                parts = ip.split(".")
+                if len(parts) == 4:
+                    cidr_map[sub_id] = f"{parts[0]}.{parts[1]}.{parts[2]}.0/24"
+        return cidr_map
+
     def get_subnets_for_vpc(self, vpc_id):
         tier_map = self._build_subnet_tier_map(vpc_id)
         default_tier = tier_map.get("_main", "Private")
         subnet_vpc_map = self._build_subnet_vpc_map()
+        subnet_cidr_map = self._build_subnet_cidr_map()
         subnets = []
         for item in self.by_type["AWS::EC2::Subnet"]:
             cfg = item.get("configuration", {})
@@ -714,13 +790,36 @@ class AWSConfigParser:
             if not az:
                 az = item.get("availabilityZone", "")
 
-            # CIDR: try configuration, fallback to resourceName or empty
+            # CIDR: try multiple sources
             cidr = cfg.get("cidrBlock", "")
+            if not cidr:
+                # Try supplementaryConfiguration
+                supp = item.get("supplementaryConfiguration", {})
+                if isinstance(supp, dict):
+                    # Some snapshots store CIDR in supplementaryConfiguration
+                    cidr = supp.get("cidrBlock", "")
+                    if not cidr:
+                        # cidrBlockAssociationSet
+                        assocs = supp.get("cidrBlockAssociationSet", [])
+                        if isinstance(assocs, str):
+                            try:
+                                assocs = json.loads(assocs)
+                            except Exception:
+                                assocs = []
+                        for a in assocs:
+                            if isinstance(a, dict):
+                                cb = a.get("cidrBlock", "")
+                                if cb:
+                                    cidr = cb
+                                    break
             if not cidr:
                 # resourceName sometimes contains CIDR
                 rn = item.get("resourceName", "")
                 if "/" in rn:
                     cidr = rn
+            if not cidr:
+                # Fallback: infer from NetworkInterface/EC2 IPs
+                cidr = subnet_cidr_map.get(sid, "")
 
             # Priority: explicit Tier tag > route table > name hint > default
             tier = tags.get("Tier", "")
