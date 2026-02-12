@@ -95,40 +95,73 @@ class DiagramV2:
         self.pos = {}       # key -> (cx, cy, hw, hh) bounding box
         self.shapes = {}    # key -> picture Shape (for connector binding)
 
-    def generate(self, out):
+    def _score_vpc(self, v):
+        """Score a VPC by resource count (higher = more resources)."""
+        vid = v["id"]
+        score = (len(self.p.get_subnets_for_vpc(vid))
+                 + len(self.p.get_albs_for_vpc(vid)) * 10
+                 + len(self.p.get_rds_for_vpc(vid)) * 5)
+        sub_ids = {s["id"] for s in self.p.get_subnets_for_vpc(vid)}
+        for item in self.p.by_type["AWS::EC2::Instance"]:
+            cfg = item.get("configuration", {})
+            if cfg.get("subnetId", "") in sub_ids:
+                score += 1
+        return score
+
+    def list_vpcs(self):
+        """List all VPCs in the config with scores. Returns list of dicts."""
+        vpcs = self.p.get_vpcs()
+        result = []
+        for v in vpcs:
+            score = self._score_vpc(v)
+            result.append({**v, "score": score})
+        return result
+
+    def generate(self, out, vpc_ids=None):
+        """Generate diagram.
+
+        Args:
+            out: output pptx file path
+            vpc_ids: list of VPC IDs to draw (each on its own slide).
+                     If None, auto-selects the best VPC.
+        """
         vpcs = self.p.get_vpcs()
         if not vpcs:
             print("No VPCs found")
             return
-        # Pick the best VPC: skip default, prefer the one with most resources
-        non_default = [v for v in vpcs if not v.get("is_default", False)]
-        candidates = non_default if non_default else vpcs
 
-        if len(candidates) == 1:
-            target = candidates[0]
+        if vpc_ids:
+            # Draw specified VPCs
+            vpc_map = {v["id"]: v for v in vpcs}
+            targets = []
+            for vid in vpc_ids:
+                if vid in vpc_map:
+                    targets.append(vpc_map[vid])
+                else:
+                    print(f"  Warning: VPC {vid} not found in config, skipping")
+            if not targets:
+                print("Error: none of the specified VPCs found")
+                return
         else:
-            # Score each VPC by number of subnets + instances + ALBs
-            best = candidates[0]
-            best_score = 0
-            for v in candidates:
-                vid = v["id"]
-                score = (len(self.p.get_subnets_for_vpc(vid))
-                         + len(self.p.get_albs_for_vpc(vid)) * 10
-                         + len(self.p.get_rds_for_vpc(vid)) * 5)
-                # Count instances in this VPC's subnets
-                sub_ids = {s["id"] for s in self.p.get_subnets_for_vpc(vid)}
-                for item in self.p.by_type["AWS::EC2::Instance"]:
-                    cfg = item.get("configuration", {})
-                    if cfg.get("subnetId", "") in sub_ids:
-                        score += 1
-                print(f"  VPC {v['name']} ({vid}): score={score}")
-                if score > best_score:
-                    best_score = score
-                    best = v
-            target = best
+            # Auto-select: skip default, pick highest-scoring
+            non_default = [v for v in vpcs if not v.get("is_default", False)]
+            candidates = non_default if non_default else vpcs
 
-        print(f"  Selected VPC: {target['name']} ({target['id']})")
-        self._build(target)
+            if len(candidates) == 1:
+                targets = [candidates[0]]
+            else:
+                scored = [(self._score_vpc(v), v) for v in candidates]
+                scored.sort(key=lambda x: -x[0])
+                for score, v in scored:
+                    print(f"  VPC {v['name']} ({v['id']}): score={score}")
+                targets = [scored[0][1]]
+
+        for v in targets:
+            print(f"  Drawing VPC: {v['name']} ({v['id']})")
+            self.pos = {}
+            self.shapes = {}
+            self._build(v)
+
         self.prs.save(out)
         print(f"Saved: {out}")
 
@@ -1556,7 +1589,13 @@ class DiagramV2:
 # ============================================================
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python generate_diagram_v2.py <config.json>")
+        print("Usage: python generate_diagram_v2.py <config.json> [--list] [--vpc vpc-id1,vpc-id2,...]")
+        print()
+        print("Options:")
+        print("  --list           List all VPCs in the config and exit")
+        print("  --vpc id1,id2    Draw specific VPC(s), each on its own slide")
+        print()
+        print("Default: auto-selects the VPC with the most resources")
         sys.exit(1)
 
     inp = sys.argv[1]
@@ -1572,8 +1611,25 @@ def main():
     for rt, items in sorted(parser.by_type.items()):
         print(f"  {rt}: {len(items)}")
 
+    # --list: show all VPCs and exit
+    if "--list" in sys.argv:
+        dg = DiagramV2(parser)
+        vpcs = dg.list_vpcs()
+        print(f"\nVPCs found: {len(vpcs)}")
+        for v in sorted(vpcs, key=lambda x: -x["score"]):
+            default_tag = " (default)" if v.get("is_default") else ""
+            print(f"  {v['id']}  {v['name']:30s}  {v['cidr']:18s}  score={v['score']}{default_tag}")
+        print(f"\nUsage: python generate_diagram_v2.py {inp} --vpc {vpcs[0]['id']}")
+        return
+
+    # --vpc: draw specified VPCs
+    vpc_ids = None
+    for i, arg in enumerate(sys.argv):
+        if arg == "--vpc" and i + 1 < len(sys.argv):
+            vpc_ids = [v.strip() for v in sys.argv[i + 1].split(",")]
+
     print(f"\nGenerating v2 diagram...")
-    DiagramV2(parser).generate(out)
+    DiagramV2(parser).generate(out, vpc_ids=vpc_ids)
     print("Done!")
 
 
