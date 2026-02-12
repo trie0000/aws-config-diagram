@@ -673,6 +673,16 @@ class AWSConfigParser:
                     rds2vpc[rid] = s2v[sub_id]
                     break
 
+        # Source 4 (last resort): assign unmapped RDS to primary VPC
+        if rds2vpc:
+            primary = self._get_primary_vpc_id()
+        else:
+            primary = ""
+        for item in self.by_type["AWS::RDS::DBInstance"]:
+            rid = item["resourceId"]
+            if rid not in rds2vpc and primary:
+                rds2vpc[rid] = primary
+
         return rds2vpc
 
     def get_subnets_for_vpc(self, vpc_id):
@@ -777,7 +787,18 @@ class AWSConfigParser:
         instances = []
         for item in self.by_type["AWS::EC2::Instance"]:
             cfg = item.get("configuration", {})
-            if cfg.get("subnetId") == subnet_id:
+            if not isinstance(cfg, dict):
+                cfg = {}
+            # Primary: configuration.subnetId
+            matched = cfg.get("subnetId") == subnet_id
+            # Fallback: relationships → Subnet reference
+            if not matched:
+                for rel in item.get("relationships", []):
+                    if (rel.get("resourceType") == "AWS::EC2::Subnet"
+                            and rel.get("resourceId") == subnet_id):
+                        matched = True
+                        break
+            if matched:
                 tags = item.get("tags", {})
                 instances.append({
                     "id": item["resourceId"],
@@ -786,7 +807,7 @@ class AWSConfigParser:
                     "private_ip": cfg.get("privateIpAddress", ""),
                     "public_ip": cfg.get("publicIpAddress"),
                     "role": tags.get("Role", ""),
-                    "sg_ids": [sg["groupId"] for sg in cfg.get("securityGroups", [])],
+                    "sg_ids": [sg.get("groupId", "") for sg in cfg.get("securityGroups", [])],
                 })
         return instances
 
@@ -855,7 +876,14 @@ class AWSConfigParser:
         sgs = []
         for item in self.by_type["AWS::EC2::SecurityGroup"]:
             cfg = item.get("configuration", {})
-            if cfg.get("vpcId") == vpc_id:
+            if not isinstance(cfg, dict):
+                cfg = {}
+            # Primary: configuration.vpcId
+            item_vpc = cfg.get("vpcId", "")
+            # Fallback: relationships → VPC reference
+            if not item_vpc:
+                item_vpc = self._get_related_vpc(item)
+            if item_vpc == vpc_id:
                 sgs.append({
                     "id": cfg.get("groupId", item["resourceId"]),
                     "name": cfg.get("groupName", ""),

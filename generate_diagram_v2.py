@@ -202,12 +202,13 @@ class DiagramV2:
 
         # --- Minimum AZ row height (initial estimate, 1 icon row) ---
         # sub_y offset(0.22) + header(0.22) + icon_row(0.75) + pad(0.05)
+        n_az = max(len(azs), 1)
         az_gap = Inches(0.15)
         min_az_h_1row = Inches(1.05)
 
         # GW column minimum from item count
         gw_min_h = Inches(0.15) + Inches(0.78) * max(gw_item_count, 1)
-        min_az_from_gw = (gw_min_h - az_gap) / 2
+        min_az_from_gw = (gw_min_h - az_gap * (n_az - 1)) / n_az
         min_az_h = max(min_az_h_1row, min_az_from_gw)
 
         # VPC box (inside Cloud)
@@ -223,7 +224,7 @@ class DiagramV2:
         # Use initial AZ height to determine VPC/GW/subnet geometry
         available_vpc_h = (L['cloud_bottom'] - L['vpc_y']
                            - bottom_total - Inches(0.10))
-        min_vpc_h = vpc_header + vpc_pad + 2 * min_az_h + az_gap
+        min_vpc_h = vpc_header + vpc_pad + n_az * min_az_h + az_gap * (n_az - 1)
         L['vpc_h'] = max(available_vpc_h, min_vpc_h)
 
         L['gw_x'] = L['vpc_x'] + vpc_pad
@@ -247,13 +248,11 @@ class DiagramV2:
         content_min_az = Inches(0.22 + 0.22 + 0.05) + icon_row_h * max(max_icon_rows, 1)
 
         # Hard limit: AZ height must fit within slide bounds
-        # slide_bottom(8.95) - cloud_y(0.35) - cloud_header(0.40)
-        #   - vpc_header - vpc_pad - az_gap - bottom_total - margin(0.10)
-        # = available for 2 AZ rows → max_az_from_slide = available / 2
         slide_bottom = Inches(8.95)
+        total_az_gaps = az_gap * (n_az - 1)
         max_az_from_slide = (slide_bottom - L['vpc_y'] - vpc_header
-                             - vpc_pad - az_gap - bottom_total
-                             - Inches(0.10)) / 2
+                             - vpc_pad - total_az_gaps - bottom_total
+                             - Inches(0.10)) / n_az
         # If content needs more than slide allows, cap to slide limit
         content_min_az = min(content_min_az, max_az_from_slide)
 
@@ -265,7 +264,7 @@ class DiagramV2:
         max_az_h = min(max_az_h, max_az_from_slide)  # never exceed slide
 
         # Recompute VPC height with updated min_az_h
-        min_vpc_h = vpc_header + vpc_pad + 2 * min_az_h + az_gap
+        min_vpc_h = vpc_header + vpc_pad + n_az * min_az_h + total_az_gaps
         L['vpc_h'] = max(available_vpc_h, min_vpc_h)
 
         # Ensure cloud_bottom never exceeds slide bottom
@@ -283,16 +282,22 @@ class DiagramV2:
         # AZ rows inside VPC
         az_area_top = L['vpc_y'] + vpc_header
         az_area_h = L['vpc_h'] - vpc_header - vpc_pad
-        az_h = (az_area_h - az_gap) / 2
+        az_h = (az_area_h - total_az_gaps) / n_az
         az_h = min(az_h, max_az_h)  # cap to content-driven max
 
-        L['az_a_y'] = az_area_top
-        L['az_c_y'] = az_area_top + az_h + az_gap
+        # Compute Y position for each AZ row
+        L['az_ys'] = []
+        for i in range(n_az):
+            L['az_ys'].append(az_area_top + i * (az_h + az_gap))
+        # Keep legacy keys for backward compatibility
+        L['az_a_y'] = L['az_ys'][0] if L['az_ys'] else az_area_top
+        L['az_c_y'] = L['az_ys'][1] if len(L['az_ys']) > 1 else L['az_a_y'] + az_h + az_gap
         L['az_h'] = az_h
 
         # Gateway column
+        last_az_y = L['az_ys'][-1] if L['az_ys'] else az_area_top
         L['gw_y'] = L['az_a_y']
-        L['gw_h'] = (L['az_c_y'] + az_h) - L['az_a_y']
+        L['gw_h'] = (last_az_y + az_h) - L['az_a_y']
 
         # Subnet column positions
         L['pub_x'] = subnet_area_x
@@ -334,7 +339,7 @@ class DiagramV2:
                 subs = tiers.get(tier, {}).get(az, [])
                 if subs:
                     icons, _aux = self._collect_subnet_icons(tier, ai,
-                                                              subs[0], res_ctx)
+                                                              subs, res_ctx)
                     all_subnet_icons[(tier, ai)] = icons
                     max_icons[tier] = max(max_icons[tier], len(icons))
 
@@ -372,8 +377,14 @@ class DiagramV2:
     # ==========================================================
     # Collect icons for a subnet (used for counting & drawing)
     # ==========================================================
-    def _collect_subnet_icons(self, tier, ai, sub, ctx):
-        """Return (main_icons, aux_labels) for a subnet.
+    def _collect_subnet_icons(self, tier, ai, subs, ctx):
+        """Return (main_icons, aux_labels) for all subnets in a tier/AZ group.
+
+        Args:
+            tier: "Public", "Private", or "Isolated"
+            ai: AZ index (0 = first AZ, 1 = second, ...)
+            subs: list of subnet dicts in this tier/AZ (may be multiple)
+            ctx: resource context dict
 
         main_icons: [(icon_name, label, key), ...] — direct data-path services
         aux_labels: [(icon_name, short_label, key), ...] — orchestration/management
@@ -381,58 +392,83 @@ class DiagramV2:
         """
         icons = []
         aux = []
+        seen_keys = set()  # deduplicate across subnets
+        sub_ids = {s["id"] for s in subs}
 
         if tier == "Public":
             # NAT Gateway is placed on subnet border (not as regular icon)
             # EC2
-            for inst in self.p.get_instances_for_subnet(sub["id"]):
-                icons.append(("ec2", f"EC2\n{inst['name']}",
-                              f"ec2_{inst['id']}"))
+            for sub in subs:
+                for inst in self.p.get_instances_for_subnet(sub["id"]):
+                    key = f"ec2_{inst['id']}"
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        icons.append(("ec2", f"EC2\n{inst['name']}", key))
 
         elif tier == "Private":
             # EC2 — direct data-path
-            for inst in self.p.get_instances_for_subnet(sub["id"]):
-                icons.append(("ec2", f"EC2\n{inst['name']}",
-                              f"ec2_{inst['id']}"))
+            for sub in subs:
+                for inst in self.p.get_instances_for_subnet(sub["id"]):
+                    key = f"ec2_{inst['id']}"
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        icons.append(("ec2", f"EC2\n{inst['name']}", key))
             # Lambda (VPC-attached) — direct data-path
             for lf in ctx['lambdas_vpc']:
-                if sub["id"] in lf.get("vpc_subnet_ids", []):
-                    icons.append(("lambda", f"Lambda\n{lf['name'][:12]}",
-                                  f"lambda_{lf['id']}"))
+                if sub_ids & set(lf.get("vpc_subnet_ids", [])):
+                    key = f"lambda_{lf['id']}"
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        icons.append(("lambda", f"Lambda\n{lf['name'][:12]}",
+                                      key))
             # ECS — direct data-path (container service)
             for svc in ctx['ecs_services']:
-                if sub["id"] in svc.get("subnet_ids", []):
-                    icons.append(("ecs", f"ECS\n{svc['name']}",
-                                  f"ecs_{svc['id']}"))
+                if sub_ids & set(svc.get("subnet_ids", [])):
+                    key = f"ecs_{svc['id']}"
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        icons.append(("ecs", f"ECS\n{svc['name']}", key))
             # EKS — direct data-path (container service)
             for ek in ctx['eks_clusters']:
-                if sub["id"] in ek.get("subnet_ids", []):
-                    icons.append(("eks", f"EKS\n{ek['name'][:12]}",
-                                  f"eks_{ek['id']}"))
+                if sub_ids & set(ek.get("subnet_ids", [])):
+                    key = f"eks_{ek['id']}"
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        icons.append(("eks", f"EKS\n{ek['name'][:12]}", key))
 
             # --- Management/orchestration → aux badges ---
-            # ElasticBeanstalk (AZ-A only)
+            # ElasticBeanstalk (first AZ only)
             if ai == 0:
                 for eb in ctx['eb_envs']:
-                    aux.append(("elasticbeanstalk",
-                               f"Beanstalk\n{eb['name'][:12]}",
-                               f"eb_{eb['id']}"))
+                    key = f"eb_{eb['id']}"
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        aux.append(("elasticbeanstalk",
+                                   f"Beanstalk\n{eb['name'][:12]}", key))
 
         elif tier == "Isolated":
             # RDS — match by subnet_id, or place all if subnet_ids unknown
             for db in ctx['rdss']:
-                if sub["id"] in db["subnet_ids"] or not db["subnet_ids"]:
-                    role = "(Primary)" if ai == 0 else "(Standby)"
-                    icons.append(("rds", f"Amazon RDS\n{role}",
-                                  f"rds_{db['id']}_{ai}"))
+                if sub_ids & set(db["subnet_ids"]) or not db["subnet_ids"]:
+                    key = f"rds_{db['id']}_{ai}"
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        role = "(Primary)" if ai == 0 else "(Standby)"
+                        icons.append(("rds", f"Amazon RDS\n{role}", key))
             # ElastiCache
             for cc in ctx['cache_clusters']:
-                icons.append(("elasticache", f"ElastiCache\n{cc['engine']}",
-                              f"cache_{cc['id']}"))
+                key = f"cache_{cc['id']}"
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    icons.append(("elasticache", f"ElastiCache\n{cc['engine']}",
+                                  key))
             # Redshift
             for rc in ctx['rs_clusters']:
-                icons.append(("redshift", f"Redshift\n{rc['name'][:10]}",
-                              f"redshift_{rc['id']}"))
+                key = f"redshift_{rc['id']}"
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    icons.append(("redshift", f"Redshift\n{rc['name'][:10]}",
+                                  key))
 
         return icons, aux
 
@@ -767,7 +803,7 @@ class DiagramV2:
             for sid in asg.get("subnet_ids", []):
                 asg_by_subnet[sid] = asg
 
-        azs = sorted(set(s["az"] for s in subs if s["az"]))[:2]
+        azs = sorted(set(s["az"] for s in subs if s["az"]))
         tiers = defaultdict(lambda: defaultdict(list))
         for s in subs:
             tiers[s["tier"]][s["az"]].append(s)
@@ -833,7 +869,7 @@ class DiagramV2:
                 sub_list = tiers.get(tier_name, {}).get(az, [])
                 if sub_list:
                     icons, _aux = self._collect_subnet_icons(
-                        tier_name, ai, sub_list[0], res_ctx)
+                        tier_name, ai, sub_list, res_ctx)
                     for _icon, _label, key in icons:
                         all_icon_tiers[key] = tier_name
         # External/serverless
@@ -931,7 +967,7 @@ class DiagramV2:
 
         # ===== AZ ROWS WITH SUBNET COLUMNS =====
         for ai, az in enumerate(azs):
-            row_y = L['az_a_y'] if ai == 0 else L['az_c_y']
+            row_y = L['az_ys'][ai] if ai < len(L['az_ys']) else L['az_ys'][-1]
             az_h = L['az_h']
             az_short = az.split("-")[-1].upper() if "-" in az else az.upper()
 
@@ -949,15 +985,15 @@ class DiagramV2:
             # --- Public Subnet ---
             ps = tiers.get("Public", {}).get(az, [])
             if ps:
-                sub = ps[0]
+                cidr_label = ", ".join(s["cidr"] for s in ps if s["cidr"])
                 self._box(sl, L['pub_x'], sub_y, L['pub_w'], sub_h,
                           C.PUB_BG, C.PUB_BD)
                 self._ilabel(sl, L['pub_x'] + Inches(0.05),
                              sub_y + Inches(0.03),
                              "public_subnet",
-                             f"Public subnet  {sub['cidr']}", 7,
+                             f"Public subnet  {cidr_label}", 7,
                              color=C.PUB_BD)
-                icons, aux = self._collect_subnet_icons("Public", ai, sub,
+                icons, aux = self._collect_subnet_icons("Public", ai, ps,
                                                         res_ctx)
                 self._place_icons_grid(sl, icons, L['pub_x'], L['pub_w'],
                                        icon_y_base, "Public",
@@ -966,9 +1002,10 @@ class DiagramV2:
                                        sub_y)
                 # NAT Gateway straddling top border of Public Subnet
                 if ai == 0:
+                    ps_ids = {s["id"] for s in ps}
                     for nat in nats:
                         # Match by subnet_id, or place in first Public if unknown
-                        if nat["subnet_id"] == sub["id"] or not nat["subnet_id"]:
+                        if nat["subnet_id"] in ps_ids or not nat["subnet_id"]:
                             nat_isz = Inches(0.42)
                             nat_tw = Inches(1.2)
                             # Centre icon on the top border line of subnet
@@ -999,15 +1036,15 @@ class DiagramV2:
             # --- Private Subnet ---
             pvs = tiers.get("Private", {}).get(az, [])
             if pvs:
-                sub = pvs[0]
+                cidr_label = ", ".join(s["cidr"] for s in pvs if s["cidr"])
                 self._box(sl, L['priv_x'], sub_y, L['priv_w'], sub_h,
                           C.PRIV_BG, C.PRIV_BD)
                 self._ilabel(sl, L['priv_x'] + Inches(0.05),
                              sub_y + Inches(0.03),
                              "private_subnet",
-                             f"Private subnet  {sub['cidr']}", 7,
+                             f"Private subnet  {cidr_label}", 7,
                              color=C.PRIV_BD)
-                icons, aux = self._collect_subnet_icons("Private", ai, sub,
+                icons, aux = self._collect_subnet_icons("Private", ai, pvs,
                                                         res_ctx)
                 self._place_icons_grid(sl, icons, L['priv_x'], L['priv_w'],
                                        icon_y_base, "Private",
@@ -1018,15 +1055,15 @@ class DiagramV2:
             # --- Isolated Subnet ---
             isos = tiers.get("Isolated", {}).get(az, [])
             if isos:
-                sub = isos[0]
+                cidr_label = ", ".join(s["cidr"] for s in isos if s["cidr"])
                 self._box(sl, L['iso_x'], sub_y, L['iso_w'], sub_h,
                           C.PRIV_BG, C.PRIV_BD)
                 self._ilabel(sl, L['iso_x'] + Inches(0.05),
                              sub_y + Inches(0.03),
                              "private_subnet",
-                             f"Private subnet  {sub['cidr']}", 7,
+                             f"Private subnet  {cidr_label}", 7,
                              color=C.PRIV_BD)
-                icons, aux = self._collect_subnet_icons("Isolated", ai, sub,
+                icons, aux = self._collect_subnet_icons("Isolated", ai, isos,
                                                         res_ctx)
                 self._place_icons_grid(sl, icons, L['iso_x'], L['iso_w'],
                                        icon_y_base, "Isolated",
