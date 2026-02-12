@@ -225,13 +225,22 @@ class AWSConfigParser:
         return vpcs
 
     def _build_subnet_tier_map(self, vpc_id):
-        """Build subnet->tier map using route table analysis.
+        """Build subnet->tier map using route table analysis + heuristics.
 
+        Primary: Route Table routes analysis
         - Public: route table has 0.0.0.0/0 -> IGW
         - Private: route table has 0.0.0.0/0 -> NAT GW (or other)
         - Isolated: route table has NO 0.0.0.0/0 route
+
+        Fallback (when Route Table configuration is empty):
+        - NAT Gateway subnet -> Public (NAT is placed in Public subnet)
+        - ALB subnet -> Public (internet-facing ALB is in Public subnet)
+        - RDS subnet -> Isolated (DB subnets are isolated)
+        - mapPublicIpOnLaunch -> Public
         """
         subnet_tier = {}
+
+        # --- Source 1: Route Table analysis ---
         for item in self.by_type["AWS::EC2::RouteTable"]:
             cfg = item.get("configuration", {})
             if not isinstance(cfg, dict):
@@ -274,6 +283,55 @@ class AWSConfigParser:
                 elif a.get("main", False):
                     # Main route table — serves as default for unassociated subs
                     subnet_tier["_main"] = tier
+
+        # If Route Table analysis produced results, return early
+        real_entries = {k: v for k, v in subnet_tier.items() if k != "_main"}
+        if real_entries:
+            return subnet_tier
+
+        # --- Source 2: Heuristic fallback (Route Table data unavailable) ---
+        s2v = self._build_subnet_vpc_map()
+        vpc_subnet_ids = {sid for sid, vid in s2v.items() if vid == vpc_id}
+
+        # NAT Gateway subnet -> Public (NAT GW resides in a Public subnet)
+        for item in self.by_type["AWS::EC2::NatGateway"]:
+            cfg = item.get("configuration", {})
+            if not isinstance(cfg, dict):
+                cfg = {}
+            sub = cfg.get("subnetId", "")
+            if sub and sub in vpc_subnet_ids and sub not in subnet_tier:
+                subnet_tier[sub] = "Public"
+
+        # ALB (internet-facing) subnets -> Public
+        for item in self.by_type["AWS::ElasticLoadBalancingV2::LoadBalancer"]:
+            cfg = item.get("configuration", {})
+            if not isinstance(cfg, dict):
+                cfg = {}
+            scheme = cfg.get("scheme", "")
+            if scheme == "internet-facing":
+                for az in cfg.get("availabilityZones", []):
+                    sub = az.get("subnetId", "")
+                    if sub and sub in vpc_subnet_ids and sub not in subnet_tier:
+                        subnet_tier[sub] = "Public"
+
+        # RDS subnets -> Isolated
+        for item in self.by_type["AWS::RDS::DBInstance"]:
+            cfg = item.get("configuration", {})
+            if not isinstance(cfg, dict):
+                cfg = {}
+            sg_group = cfg.get("dBSubnetGroup", cfg.get("dbSubnetGroup", {}))
+            if not isinstance(sg_group, dict):
+                sg_group = {}
+            for s in sg_group.get("subnets", []):
+                sub = s.get("subnetIdentifier", "")
+                if sub and sub in vpc_subnet_ids and sub not in subnet_tier:
+                    subnet_tier[sub] = "Isolated"
+
+        # Remaining unclassified subnets: default to Private
+        # (set _main so get_subnets_for_vpc uses it as fallback)
+        if "_main" not in subnet_tier:
+            subnet_tier["_main"] = "Private"
+
         return subnet_tier
 
     @staticmethod
