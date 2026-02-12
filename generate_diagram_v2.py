@@ -100,12 +100,34 @@ class DiagramV2:
         if not vpcs:
             print("No VPCs found")
             return
-        # Skip default VPC, prefer user-created VPCs
-        target = vpcs[0]
-        for v in vpcs:
-            if not v.get("is_default", False):
-                target = v
-                break
+        # Pick the best VPC: skip default, prefer the one with most resources
+        non_default = [v for v in vpcs if not v.get("is_default", False)]
+        candidates = non_default if non_default else vpcs
+
+        if len(candidates) == 1:
+            target = candidates[0]
+        else:
+            # Score each VPC by number of subnets + instances + ALBs
+            best = candidates[0]
+            best_score = 0
+            for v in candidates:
+                vid = v["id"]
+                score = (len(self.p.get_subnets_for_vpc(vid))
+                         + len(self.p.get_albs_for_vpc(vid)) * 10
+                         + len(self.p.get_rds_for_vpc(vid)) * 5)
+                # Count instances in this VPC's subnets
+                sub_ids = {s["id"] for s in self.p.get_subnets_for_vpc(vid)}
+                for item in self.p.by_type["AWS::EC2::Instance"]:
+                    cfg = item.get("configuration", {})
+                    if cfg.get("subnetId", "") in sub_ids:
+                        score += 1
+                print(f"  VPC {v['name']} ({vid}): score={score}")
+                if score > best_score:
+                    best_score = score
+                    best = v
+            target = best
+
+        print(f"  Selected VPC: {target['name']} ({target['id']})")
         self._build(target)
         self.prs.save(out)
         print(f"Saved: {out}")
