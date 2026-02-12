@@ -293,6 +293,7 @@ class AWSConfigParser:
         s2v = self._build_subnet_vpc_map()
         vpc_subnet_ids = {sid for sid, vid in s2v.items() if vid == vpc_id}
 
+        # Try direct subnet mapping from service configurations
         # NAT Gateway subnet -> Public (NAT GW resides in a Public subnet)
         for item in self.by_type["AWS::EC2::NatGateway"]:
             cfg = item.get("configuration", {})
@@ -327,8 +328,98 @@ class AWSConfigParser:
                 if sub and sub in vpc_subnet_ids and sub not in subnet_tier:
                     subnet_tier[sub] = "Isolated"
 
-        # Remaining unclassified subnets: default to Private
-        # (set _main so get_subnets_for_vpc uses it as fallback)
+        # If heuristics assigned any tiers, set default for remaining and return
+        real_entries2 = {k: v for k, v in subnet_tier.items() if k != "_main"}
+        if real_entries2:
+            if "_main" not in subnet_tier:
+                subnet_tier["_main"] = "Private"
+            return subnet_tier
+
+        # --- Source 3: Last resort — auto-distribute tiers by AZ ---
+        # When ALL configuration data is empty (Route Tables, NAT subnetId,
+        # RDS subnet_ids, ALB subnets, etc.), distribute subnets into
+        # Public/Private/Isolated based on service existence and AZ grouping.
+        has_igw = bool(self.by_type["AWS::EC2::InternetGateway"])
+        has_nat = bool(self.by_type["AWS::EC2::NatGateway"])
+        has_rds = bool(self.by_type["AWS::RDS::DBInstance"])
+
+        # Group VPC subnets by AZ
+        az_subnets = defaultdict(list)
+        for item in self.by_type["AWS::EC2::Subnet"]:
+            sid = item["resourceId"]
+            if sid not in vpc_subnet_ids:
+                continue
+            az = ""
+            cfg_s = item.get("configuration", {})
+            if isinstance(cfg_s, dict):
+                az = cfg_s.get("availabilityZone", "")
+            if not az:
+                az = item.get("availabilityZone", "")
+            az_subnets[az or "unknown"].append(sid)
+
+        # Find subnets that have EC2 instances (these are Private/app subnets)
+        ec2_subnets = set()
+        for item in self.by_type["AWS::EC2::Instance"]:
+            cfg_e = item.get("configuration", {})
+            if isinstance(cfg_e, dict):
+                sub = cfg_e.get("subnetId", "")
+                if sub and sub in vpc_subnet_ids:
+                    ec2_subnets.add(sub)
+
+        # Distribute: for each AZ, assign tiers to subnets
+        for az, sids in az_subnets.items():
+            if len(sids) == 1:
+                # Only 1 subnet in this AZ: make it Private (most useful)
+                subnet_tier[sids[0]] = "Private"
+            elif len(sids) == 2:
+                # 2 subnets: Public + Private
+                if has_igw or has_nat:
+                    # The one WITHOUT EC2 is likely Public
+                    non_ec2 = [s for s in sids if s not in ec2_subnets]
+                    with_ec2 = [s for s in sids if s in ec2_subnets]
+                    if non_ec2 and with_ec2:
+                        subnet_tier[non_ec2[0]] = "Public"
+                        subnet_tier[with_ec2[0]] = "Private"
+                    else:
+                        subnet_tier[sids[0]] = "Public"
+                        subnet_tier[sids[1]] = "Private"
+                else:
+                    subnet_tier[sids[0]] = "Public"
+                    subnet_tier[sids[1]] = "Private"
+            else:
+                # 3+ subnets: Public + Private + Isolated
+                non_ec2 = [s for s in sids if s not in ec2_subnets]
+                with_ec2 = [s for s in sids if s in ec2_subnets]
+                assigned = set()
+
+                # First non-EC2 subnet -> Public
+                if non_ec2:
+                    subnet_tier[non_ec2[0]] = "Public"
+                    assigned.add(non_ec2[0])
+                elif sids:
+                    subnet_tier[sids[0]] = "Public"
+                    assigned.add(sids[0])
+
+                # If RDS exists, assign one subnet as Isolated
+                if has_rds:
+                    for s in non_ec2:
+                        if s not in assigned:
+                            subnet_tier[s] = "Isolated"
+                            assigned.add(s)
+                            break
+                    else:
+                        # No remaining non-EC2 subnet; use last one
+                        for s in reversed(sids):
+                            if s not in assigned:
+                                subnet_tier[s] = "Isolated"
+                                assigned.add(s)
+                                break
+
+                # Remaining -> Private
+                for s in sids:
+                    if s not in assigned:
+                        subnet_tier[s] = "Private"
+
         if "_main" not in subnet_tier:
             subnet_tier["_main"] = "Private"
 

@@ -419,9 +419,9 @@ class DiagramV2:
                                f"eb_{eb['id']}"))
 
         elif tier == "Isolated":
-            # RDS
+            # RDS — match by subnet_id, or place all if subnet_ids unknown
             for db in ctx['rdss']:
-                if sub["id"] in db["subnet_ids"]:
+                if sub["id"] in db["subnet_ids"] or not db["subnet_ids"]:
                     role = "(Primary)" if ai == 0 else "(Standby)"
                     icons.append(("rds", f"Amazon RDS\n{role}",
                                   f"rds_{db['id']}_{ai}"))
@@ -967,7 +967,8 @@ class DiagramV2:
                 # NAT Gateway straddling top border of Public Subnet
                 if ai == 0:
                     for nat in nats:
-                        if nat["subnet_id"] == sub["id"]:
+                        # Match by subnet_id, or place in first Public if unknown
+                        if nat["subnet_id"] == sub["id"] or not nat["subnet_id"]:
                             nat_isz = Inches(0.42)
                             nat_tw = Inches(1.2)
                             # Centre icon on the top border line of subnet
