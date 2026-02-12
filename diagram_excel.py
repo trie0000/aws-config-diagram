@@ -496,9 +496,9 @@ class DiagramExcel:
         az_gap = Inches(0.15)
 
         # Minimum AZ height from icon rows
-        # 0.25 AZ header + 0.25 subnet header + icon rows + 0.20 bottom pad
-        icon_row_h = Inches(0.85)
-        content_min_az = Inches(0.25 + 0.25 + 0.20) + icon_row_h * max(max_icon_rows, 1)
+        # 0.30 AZ header + 0.30 subnet header + icon rows + 0.30 bottom pad
+        icon_row_h = Inches(0.95)
+        content_min_az = Inches(0.30 + 0.30 + 0.30) + icon_row_h * max(max_icon_rows, 1)
 
         # Minimum AZ height from gateway column
         gw_min_h = Inches(0.15) + Inches(0.78) * max(gw_item_count, 1)
@@ -1126,9 +1126,9 @@ class DiagramExcel:
                       Inches(3.5), Inches(0.20),
                       f"Availability Zone {az_short}", 8, True, C.TEXT_G)
 
-            sub_y = row_y + Inches(0.25)
-            sub_h = az_h - Inches(0.30)
-            icon_y_base = sub_y + Inches(0.25)
+            sub_y = row_y + Inches(0.30)
+            sub_h = az_h - Inches(0.35)
+            icon_y_base = sub_y + Inches(0.30)
 
             # Public Subnet
             ps = tiers.get("Public", {}).get(az, [])
