@@ -1635,6 +1635,52 @@ def main():
         dg = DiagramV2(parser)
         vpcs = dg.list_vpcs()
 
+        # Check if Route Table exists in JSON at all
+        print(f"\n  --- Route Table existence check ---")
+        rt_parsed = parser.by_type.get("AWS::EC2::RouteTable", [])
+        print(f"    Parsed RouteTable count: {len(rt_parsed)}")
+        # Also scan raw JSON for any RouteTable items not captured by parser
+        rt_in_raw = 0
+        rt_types_found = set()
+        for item in parser.items:
+            rt = item.get("resourceType", "")
+            if "RouteTable" in rt or "routeTable" in rt.lower():
+                rt_in_raw += 1
+                rt_types_found.add(rt)
+        print(f"    Raw JSON RouteTable items: {rt_in_raw}  types: {rt_types_found or 'none'}")
+        # Scan ALL items in original JSON (before parser filter)
+        all_items = parser.data.get("configurationItems", [])
+        all_rt = [it for it in all_items if "RouteTable" in it.get("resourceType", "")]
+        print(f"    Total configurationItems: {len(all_items)}")
+        print(f"    RouteTable in all items: {len(all_rt)}")
+        for rt_item in all_rt[:5]:
+            rid = rt_item.get("resourceId", "?")
+            rt_type = rt_item.get("resourceType", "?")
+            cfg = rt_item.get("configuration")
+            rels = rt_item.get("relationships", [])
+            cfg_type = type(cfg).__name__
+            cfg_len = len(cfg) if isinstance(cfg, (dict, list, str)) else 0
+            print(f"      {rid} ({rt_type})")
+            print(f"        configuration: type={cfg_type}, len={cfg_len}")
+            if isinstance(cfg, dict):
+                print(f"        cfg keys: {list(cfg.keys())[:15]}")
+                routes = cfg.get("routes", cfg.get("routeSet", cfg.get("Routes", cfg.get("RouteSet", []))))
+                assocs = cfg.get("associations", cfg.get("routeTableAssociationSet",
+                                 cfg.get("Associations", cfg.get("RouteTableAssociationSet", []))))
+                print(f"        routes: {len(routes)} items")
+                for r in routes[:3]:
+                    print(f"          {r}")
+                print(f"        associations: {len(assocs)} items")
+                for a in assocs[:3]:
+                    print(f"          {a}")
+            elif isinstance(cfg, str):
+                print(f"        cfg string (first 200): {cfg[:200]}")
+            else:
+                print(f"        cfg raw: {str(cfg)[:200]}")
+            print(f"        relationships: {len(rels)} items")
+            for r in rels[:3]:
+                print(f"          {r.get('resourceType', '?')} -> {r.get('resourceId', '?')}")
+
         # Dump raw EC2 configuration keys for troubleshooting
         print(f"\n  --- EC2 Instance raw config ---")
         for item in parser.by_type["AWS::EC2::Instance"]:
