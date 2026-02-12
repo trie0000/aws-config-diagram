@@ -1653,12 +1653,18 @@ def main():
         for item in parser.by_type["AWS::EC2::Subnet"][:3]:
             cfg = item.get("configuration", {})
             rid = item.get("resourceId", "?")
+            az = item.get("availabilityZone", "")
+            rels = item.get("relationships", [])
+            rel_vpc = ""
+            for r in rels:
+                if r.get("resourceType") == "AWS::EC2::VPC":
+                    rel_vpc = r.get("resourceId", "")
             if isinstance(cfg, dict):
                 sid = cfg.get("subnetId", "NOT_FOUND")
                 vid = cfg.get("vpcId", "NOT_FOUND")
-                print(f"    {rid}: subnetId={sid}, vpcId={vid}, keys={list(cfg.keys())[:15]}")
+                print(f"    {rid}: cfg.vpcId={vid}, cfg.subnetId={sid}, rel_vpc={rel_vpc}, az={az}, keys={list(cfg.keys())[:10]}")
             else:
-                print(f"    {rid}: configuration is {type(cfg).__name__}")
+                print(f"    {rid}: configuration is {type(cfg).__name__}, rel_vpc={rel_vpc}, az={az}")
 
         for v in sorted(vpcs, key=lambda x: -x["score"]):
             vid = v["id"]

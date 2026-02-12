@@ -228,7 +228,12 @@ class AWSConfigParser:
         subnet_tier = {}
         for item in self.by_type["AWS::EC2::RouteTable"]:
             cfg = item.get("configuration", {})
-            if cfg.get("vpcId") != vpc_id:
+            if not isinstance(cfg, dict):
+                cfg = {}
+            rt_vpc = cfg.get("vpcId", "")
+            if not rt_vpc:
+                rt_vpc = self._get_related_vpc(item)
+            if rt_vpc != vpc_id:
                 continue
             routes = cfg.get("routes", cfg.get("routeSet", []))
             has_igw = False
@@ -265,61 +270,106 @@ class AWSConfigParser:
                     subnet_tier["_main"] = tier
         return subnet_tier
 
+    @staticmethod
+    def _get_related_vpc(item):
+        """Extract VPC ID from relationships when configuration is empty."""
+        for rel in item.get("relationships", []):
+            if rel.get("resourceType") == "AWS::EC2::VPC":
+                return rel.get("resourceId", "")
+        return ""
+
     def get_subnets_for_vpc(self, vpc_id):
         tier_map = self._build_subnet_tier_map(vpc_id)
         default_tier = tier_map.get("_main", "Private")
         subnets = []
         for item in self.by_type["AWS::EC2::Subnet"]:
             cfg = item.get("configuration", {})
-            if cfg.get("vpcId") == vpc_id:
-                tags = item.get("tags", {})
-                sid = item["resourceId"]
+            if not isinstance(cfg, dict):
+                cfg = {}
 
-                # Priority: explicit Tier tag > route table > name hint > default
-                tier = tags.get("Tier", "")
-                if not tier:
-                    tier = tier_map.get(sid, "")
-                if not tier:
-                    # Heuristic: infer from Name tag
-                    name = tags.get("Name", "").lower()
-                    if "public" in name:
-                        tier = "Public"
-                    elif "isolated" in name or "db" in name or "data" in name:
-                        tier = "Isolated"
-                    elif "private" in name:
-                        tier = "Private"
-                if not tier:
-                    # mapPublicIpOnLaunch hint
-                    if cfg.get("mapPublicIpOnLaunch"):
-                        tier = "Public"
-                if not tier:
-                    tier = default_tier
+            # VPC ID: try configuration first, fallback to relationships
+            item_vpc = cfg.get("vpcId", "")
+            if not item_vpc:
+                item_vpc = self._get_related_vpc(item)
 
-                subnets.append({
-                    "id": sid,
-                    "name": tags.get("Name", sid),
-                    "cidr": cfg.get("cidrBlock", ""),
-                    "az": cfg.get("availabilityZone", ""),
-                    "tier": tier,
-                })
+            if item_vpc != vpc_id:
+                continue
+
+            tags = item.get("tags", {})
+            sid = item["resourceId"]
+
+            # AZ: try configuration, fallback to top-level field
+            az = cfg.get("availabilityZone", "")
+            if not az:
+                az = item.get("availabilityZone", "")
+
+            # CIDR: try configuration, fallback to resourceName or empty
+            cidr = cfg.get("cidrBlock", "")
+            if not cidr:
+                # resourceName sometimes contains CIDR
+                rn = item.get("resourceName", "")
+                if "/" in rn:
+                    cidr = rn
+
+            # Priority: explicit Tier tag > route table > name hint > default
+            tier = tags.get("Tier", "")
+            if not tier:
+                tier = tier_map.get(sid, "")
+            if not tier:
+                # Heuristic: infer from Name tag
+                name = tags.get("Name", "").lower()
+                if "public" in name:
+                    tier = "Public"
+                elif "isolated" in name or "db" in name or "data" in name:
+                    tier = "Isolated"
+                elif "private" in name:
+                    tier = "Private"
+            if not tier:
+                # mapPublicIpOnLaunch hint
+                if cfg.get("mapPublicIpOnLaunch"):
+                    tier = "Public"
+            if not tier:
+                tier = default_tier
+
+            subnets.append({
+                "id": sid,
+                "name": tags.get("Name", sid),
+                "cidr": cidr,
+                "az": az,
+                "tier": tier,
+            })
         return subnets
 
     def get_igw_for_vpc(self, vpc_id):
         for item in self.by_type["AWS::EC2::InternetGateway"]:
             cfg = item.get("configuration", {})
+            if not isinstance(cfg, dict):
+                cfg = {}
+            # Try configuration.attachments first
             for att in cfg.get("attachments", []):
                 if att.get("vpcId") == vpc_id:
                     return {
                         "id": item["resourceId"],
                         "name": item.get("tags", {}).get("Name", item["resourceId"]),
                     }
+            # Fallback: check relationships
+            if self._get_related_vpc(item) == vpc_id:
+                return {
+                    "id": item["resourceId"],
+                    "name": item.get("tags", {}).get("Name", item["resourceId"]),
+                }
         return None
 
     def get_nat_gateways_for_vpc(self, vpc_id):
         nats = []
         for item in self.by_type["AWS::EC2::NatGateway"]:
             cfg = item.get("configuration", {})
-            if cfg.get("vpcId") == vpc_id:
+            if not isinstance(cfg, dict):
+                cfg = {}
+            item_vpc = cfg.get("vpcId", "")
+            if not item_vpc:
+                item_vpc = self._get_related_vpc(item)
+            if item_vpc == vpc_id:
                 addrs = cfg.get("natGatewayAddresses", [])
                 public_ip = addrs[0].get("publicIp", "") if addrs else ""
                 nats.append({
@@ -351,7 +401,12 @@ class AWSConfigParser:
         albs = []
         for item in self.by_type["AWS::ElasticLoadBalancingV2::LoadBalancer"]:
             cfg = item.get("configuration", {})
-            if cfg.get("vpcId") == vpc_id:
+            if not isinstance(cfg, dict):
+                cfg = {}
+            item_vpc = cfg.get("vpcId", "")
+            if not item_vpc:
+                item_vpc = self._get_related_vpc(item)
+            if item_vpc == vpc_id:
                 albs.append({
                     "id": item["resourceId"],
                     "name": cfg.get("loadBalancerName", item.get("tags", {}).get("Name", "")),
@@ -367,8 +422,15 @@ class AWSConfigParser:
         dbs = []
         for item in self.by_type["AWS::RDS::DBInstance"]:
             cfg = item.get("configuration", {})
-            sg_group = cfg.get("dBSubnetGroup", {})
-            if sg_group.get("vpcId") == vpc_id:
+            if not isinstance(cfg, dict):
+                cfg = {}
+            sg_group = cfg.get("dBSubnetGroup", cfg.get("dbSubnetGroup", {}))
+            if not isinstance(sg_group, dict):
+                sg_group = {}
+            item_vpc = sg_group.get("vpcId", "")
+            if not item_vpc:
+                item_vpc = self._get_related_vpc(item)
+            if item_vpc == vpc_id:
                 subnet_ids = [s["subnetIdentifier"] for s in sg_group.get("subnets", [])]
                 dbs.append({
                     "id": item["resourceId"],
