@@ -1666,6 +1666,50 @@ def main():
             else:
                 print(f"    {rid}: configuration is {type(cfg).__name__}, rel_vpc={rel_vpc}, az={az}")
 
+        # Dump raw Route Table config
+        print(f"\n  --- RouteTable raw config ---")
+        for item in parser.by_type["AWS::EC2::RouteTable"][:3]:
+            cfg = item.get("configuration", {})
+            rid = item.get("resourceId", "?")
+            rels = item.get("relationships", [])
+            rel_vpc = ""
+            for r in rels:
+                if r.get("resourceType") == "AWS::EC2::VPC":
+                    rel_vpc = r.get("resourceId", "")
+            if isinstance(cfg, dict):
+                vid = cfg.get("vpcId", "NOT_FOUND")
+                routes = cfg.get("routes", cfg.get("routeSet", []))
+                assocs = cfg.get("associations", cfg.get("routeTableAssociationSet", []))
+                print(f"    {rid}: cfg.vpcId={vid}, rel_vpc={rel_vpc}, routes={len(routes)}, assocs={len(assocs)}, keys={list(cfg.keys())[:10]}")
+                for r in routes[:3]:
+                    print(f"      route: dest={r.get('destinationCidrBlock', '?')}, gw={r.get('gatewayId', '')}, nat={r.get('natGatewayId', '')}")
+            else:
+                print(f"    {rid}: configuration is {type(cfg).__name__}, rel_vpc={rel_vpc}")
+
+        # Dump raw IGW config
+        print(f"\n  --- IGW raw config ---")
+        for item in parser.by_type["AWS::EC2::InternetGateway"]:
+            cfg = item.get("configuration", {})
+            rid = item.get("resourceId", "?")
+            rels = item.get("relationships", [])
+            print(f"    {rid}: cfg_keys={list(cfg.keys()) if isinstance(cfg, dict) else type(cfg).__name__}, rels={len(rels)}")
+            if isinstance(cfg, dict):
+                print(f"      attachments={cfg.get('attachments', [])}")
+            for r in rels:
+                print(f"      rel: {r.get('resourceType', '?')} -> {r.get('resourceId', '?')}")
+
+        # Dump raw NAT config
+        print(f"\n  --- NAT raw config ---")
+        for item in parser.by_type["AWS::EC2::NatGateway"]:
+            cfg = item.get("configuration", {})
+            rid = item.get("resourceId", "?")
+            rels = item.get("relationships", [])
+            print(f"    {rid}: cfg_keys={list(cfg.keys()) if isinstance(cfg, dict) else type(cfg).__name__}, rels={len(rels)}")
+            if isinstance(cfg, dict):
+                print(f"      vpcId={cfg.get('vpcId', 'NOT_FOUND')}, subnetId={cfg.get('subnetId', 'NOT_FOUND')}")
+            for r in rels:
+                print(f"      rel: {r.get('resourceType', '?')} -> {r.get('resourceId', '?')}")
+
         # Dump reverse maps for troubleshooting
         igw_map = parser._build_igw_vpc_map()
         nat_map = parser._build_nat_vpc_map()

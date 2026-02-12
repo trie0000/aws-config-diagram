@@ -349,11 +349,41 @@ class AWSConfigParser:
 
         return s2v
 
+    def _get_primary_vpc_id(self):
+        """Get the primary (non-default, most-resourced) VPC ID.
+
+        Used as last-resort fallback when resource-to-VPC mapping fails
+        for all other methods.
+        """
+        s2v = self._build_subnet_vpc_map()
+        # Count resources per VPC from subnet map
+        vpc_counts = defaultdict(int)
+        for vid in s2v.values():
+            vpc_counts[vid] += 1
+        # Also count EC2 instances per VPC
+        for item in self.by_type["AWS::EC2::Instance"]:
+            cfg = item.get("configuration", {})
+            if isinstance(cfg, dict) and cfg.get("vpcId"):
+                vpc_counts[cfg["vpcId"]] += 10
+
+        if vpc_counts:
+            return max(vpc_counts, key=vpc_counts.get)
+
+        # Fallback: first non-default VPC, or just first VPC
+        for item in self.by_type["AWS::EC2::VPC"]:
+            cfg = item.get("configuration", {})
+            if not cfg.get("isDefault", False):
+                return item["resourceId"]
+        if self.by_type["AWS::EC2::VPC"]:
+            return self.by_type["AWS::EC2::VPC"][0]["resourceId"]
+        return ""
+
     def _build_igw_vpc_map(self):
         """Build igw_id -> vpc_id map from Route Tables.
 
         When IGW configuration/relationships are empty, we reverse-engineer
         the mapping from Route Tables that reference the IGW in their routes.
+        Last resort: assign unmatched IGWs to the primary VPC.
         """
         igw2vpc = {}
 
@@ -388,6 +418,20 @@ class AWSConfigParser:
                 if gw and gw.startswith("igw-") and gw not in igw2vpc:
                     igw2vpc[gw] = rt_vpc
 
+        # Source 4 (last resort): Assign unmatched IGWs to primary VPC
+        # IGW is typically 1:1 with VPC; if all other methods fail, assume
+        # unmatched IGWs belong to the VPC with the most resources
+        unmatched = [item["resourceId"] for item in self.by_type["AWS::EC2::InternetGateway"]
+                     if item["resourceId"] not in igw2vpc]
+        if unmatched:
+            primary_vpc = self._get_primary_vpc_id()
+            if primary_vpc:
+                # Only assign if the primary VPC doesn't already have an IGW
+                vpcs_with_igw = set(igw2vpc.values())
+                if primary_vpc not in vpcs_with_igw:
+                    # Assign the first unmatched IGW to primary VPC
+                    igw2vpc[unmatched[0]] = primary_vpc
+
         return igw2vpc
 
     def _build_nat_vpc_map(self):
@@ -395,6 +439,7 @@ class AWSConfigParser:
 
         When NAT configuration/relationships are empty, we reverse-engineer
         the mapping from Route Tables that reference the NAT in their routes.
+        Last resort: assign unmatched NATs to the primary VPC.
         """
         nat2vpc = {}
 
@@ -424,6 +469,15 @@ class AWSConfigParser:
                 nat = r.get("natGatewayId", "")
                 if nat and nat.startswith("nat-") and nat not in nat2vpc:
                     nat2vpc[nat] = rt_vpc
+
+        # Source 3 (last resort): Assign unmatched NATs to primary VPC
+        unmatched = [item["resourceId"] for item in self.by_type["AWS::EC2::NatGateway"]
+                     if item["resourceId"] not in nat2vpc]
+        if unmatched:
+            primary_vpc = self._get_primary_vpc_id()
+            if primary_vpc:
+                for nat_id in unmatched:
+                    nat2vpc[nat_id] = primary_vpc
 
         return nat2vpc
 
