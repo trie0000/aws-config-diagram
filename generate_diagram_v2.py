@@ -1634,6 +1634,32 @@ def main():
     if debug:
         dg = DiagramV2(parser)
         vpcs = dg.list_vpcs()
+
+        # Dump raw EC2 configuration keys for troubleshooting
+        print(f"\n  --- EC2 Instance raw config ---")
+        for item in parser.by_type["AWS::EC2::Instance"]:
+            cfg = item.get("configuration", {})
+            cfg_type = type(cfg).__name__
+            rid = item.get("resourceId", "?")
+            if isinstance(cfg, dict):
+                sid = cfg.get("subnetId", "NOT_FOUND")
+                vid = cfg.get("vpcId", "NOT_FOUND")
+                print(f"    {rid}: subnetId={sid}, vpcId={vid}, keys={list(cfg.keys())[:15]}")
+            else:
+                print(f"    {rid}: configuration is {cfg_type} (not dict!): {str(cfg)[:100]}")
+
+        # Dump raw Subnet configuration keys
+        print(f"\n  --- Subnet raw config ---")
+        for item in parser.by_type["AWS::EC2::Subnet"][:3]:
+            cfg = item.get("configuration", {})
+            rid = item.get("resourceId", "?")
+            if isinstance(cfg, dict):
+                sid = cfg.get("subnetId", "NOT_FOUND")
+                vid = cfg.get("vpcId", "NOT_FOUND")
+                print(f"    {rid}: subnetId={sid}, vpcId={vid}, keys={list(cfg.keys())[:15]}")
+            else:
+                print(f"    {rid}: configuration is {type(cfg).__name__}")
+
         for v in sorted(vpcs, key=lambda x: -x["score"]):
             vid = v["id"]
             default_tag = " (default)" if v.get("is_default") else ""
