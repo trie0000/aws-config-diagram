@@ -43,25 +43,22 @@ pip install -r requirements.txt
 
 1. [AWS マネジメントコンソール](https://console.aws.amazon.com/) にログイン
 2. **AWS Config** サービスに移動
-3. 左メニューから **「高度なクエリ」** を選択
-4. 以下のクエリを実行して、記録されているリソースを確認:
-   ```sql
-   SELECT resourceType, resourceId, resourceName, configuration
-   WHERE resourceType IN (
-     'AWS::EC2::VPC',
-     'AWS::EC2::Subnet',
-     'AWS::EC2::Instance',
-     'AWS::EC2::SecurityGroup',
-     'AWS::EC2::RouteTable',
-     'AWS::EC2::InternetGateway',
-     'AWS::EC2::NatGateway',
-     'AWS::ElasticLoadBalancingV2::LoadBalancer',
-     'AWS::RDS::DBInstance',
-     'AWS::Lambda::Function',
-     'AWS::S3::Bucket'
-   )
+3. 左メニューから **「設定」** を選択
+4. 配信チャネルの **S3 バケット名** を確認（例: `config-bucket-123456789012`）
+5. **「スナップショットの配信」** ボタンをクリック（配信チャネルセクション内）
+   - これにより、現在の全リソース情報が S3 に出力される
+6. **S3** サービスに移動し、上記バケットを開く
+7. 以下のパスでスナップショットファイルを探す:
    ```
-5. 結果をJSONでエクスポート
+   AWSLogs/<アカウントID>/Config/<リージョン>/YYYY/M/D/
+   ```
+   ファイル名の例: `123456789012_Config_ap-northeast-1_ConfigSnapshot_20260212T120000Z.json.gz`
+8. `.json.gz` ファイルをダウンロードして解凍:
+   ```bash
+   gunzip 123456789012_Config_ap-northeast-1_ConfigSnapshot_20260212T*.json.gz
+   ```
+
+> **ポイント**: スナップショットには AWS Config が記録している全リソースタイプのデータが含まれます。本ツールが必要なリソース（VPC, Subnet, EC2, RDS 等）を自動的に抽出して図を生成します。
 
 ### 方法2: S3 に配信されたスナップショットを直接ダウンロード
 
