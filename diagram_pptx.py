@@ -302,12 +302,14 @@ class DiagramV2:
         L['gw_y'] = L['az_a_y']
         L['gw_h'] = (last_az_y + az_h) - L['az_a_y']
 
-        # Subnet column positions
+        # Subnet column positions (skip gaps for inactive tiers)
         L['pub_x'] = subnet_area_x
         L['pub_w'] = col_widths['Public']
-        L['priv_x'] = L['pub_x'] + L['pub_w'] + col_gap
+        priv_offset = L['pub_w'] + (col_gap if L['pub_w'] > 0 else 0)
+        L['priv_x'] = L['pub_x'] + priv_offset
         L['priv_w'] = col_widths['Private']
-        L['iso_x'] = L['priv_x'] + L['priv_w'] + col_gap
+        iso_offset = L['priv_w'] + (col_gap if L['priv_w'] > 0 else 0)
+        L['iso_x'] = L['priv_x'] + iso_offset
         L['iso_w'] = col_widths['Isolated']
 
         # Bottom service rows (inside cloud, below VPC)

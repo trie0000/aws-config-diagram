@@ -447,19 +447,46 @@ class DiagramExcel:
                      icon_conns=None, all_icon_tiers=None):
         L = {}
 
+        if icon_conns is None:
+            icon_conns = {}
+        if all_icon_tiers is None:
+            all_icon_tiers = {}
+
         L['left_w'] = Inches(2.3) if has_edge else Inches(1.3)
-        # right_margin is outside the Cloud box; keep it slim.
-        # Space for orphan DB / peering is inside Cloud but outside VPC.
         L['right_margin'] = Inches(0.3)
+
+        cloud_pad = Inches(0.15)
+        vpc_header = Inches(0.30)
+        vpc_pad = Inches(0.10)
+        col_gap = Inches(0.10)
+
+        L['gw_w'] = Inches(1.30)
+
+        # --- Step 1: Calculate desired column widths (content-driven) ---
+        col_widths, max_icon_rows, active_tiers = self._calc_col_widths(
+            tiers, azs, col_gap, res_ctx, icon_conns, all_icon_tiers)
+
+        # Actual subnet area width = sum of active columns + gaps
+        n_gaps = max(len(active_tiers) - 1, 0)
+        subnet_area_w = sum(col_widths.values()) + col_gap * n_gaps
+
+        # --- Step 2: Derive VPC/Cloud width from content ---
+        # VPC = vpc_pad + gw_w + col_gap + subnet_area + vpc_pad
+        vpc_w = vpc_pad + L['gw_w'] + col_gap + subnet_area_w + vpc_pad
+
+        # Reserve space inside Cloud box (right of VPC) for orphan DB/peering
+        db_col_w = Inches(1.5) if has_peering else 0
+        cloud_w = 2 * cloud_pad + vpc_w + db_col_w
 
         L['cloud_x'] = L['left_w']
         L['cloud_y'] = Inches(0.35)
-        L['cloud_w'] = Inches(16) - L['left_w'] - L['right_margin']
+        L['cloud_w'] = cloud_w
 
-        # Excel: no slide bottom limit — use content-driven sizing
-        # Start with a reasonable default, expand as needed
-        cloud_bottom_default = Inches(8.95)
+        L['vpc_x'] = L['cloud_x'] + cloud_pad
+        L['vpc_y'] = L['cloud_y'] + Inches(0.40)
+        L['vpc_w'] = vpc_w
 
+        # --- Step 3: Height calculation (content-driven) ---
         bottom_row_h = Inches(0.65)
         n_bottom = (1 if has_infra else 0) + (1 if has_svless else 0)
         bottom_total = Inches(0.10) + bottom_row_h * n_bottom if n_bottom > 0 \
@@ -467,63 +494,28 @@ class DiagramExcel:
 
         n_az = max(len(azs), 1)
         az_gap = Inches(0.15)
-        min_az_h_1row = Inches(1.05)
 
-        gw_min_h = Inches(0.15) + Inches(0.78) * max(gw_item_count, 1)
-        min_az_from_gw = (gw_min_h - az_gap * (n_az - 1)) / n_az
-        min_az_h = max(min_az_h_1row, min_az_from_gw)
-
-        cloud_pad = Inches(0.15)
-        # Reserve space inside Cloud box (right of VPC) for orphan DB/peering
-        db_col_w = Inches(1.5) if has_peering else 0
-        L['vpc_x'] = L['cloud_x'] + cloud_pad
-        L['vpc_y'] = L['cloud_y'] + Inches(0.40)
-        L['vpc_w'] = L['cloud_w'] - 2 * cloud_pad - db_col_w
-
-        vpc_header = Inches(0.30)
-        vpc_pad = Inches(0.10)
-
-        # Column widths
-        L['gw_x'] = L['vpc_x'] + vpc_pad
-        L['gw_w'] = Inches(1.30)
-
-        col_gap = Inches(0.10)
-        subnet_area_x = L['gw_x'] + L['gw_w'] + col_gap
-        subnet_area_w = (L['vpc_x'] + L['vpc_w'] - vpc_pad) - subnet_area_x
-
-        if icon_conns is None:
-            icon_conns = {}
-        if all_icon_tiers is None:
-            all_icon_tiers = {}
-        col_widths, max_icon_rows = self._calc_col_widths(
-            tiers, azs, subnet_area_w, col_gap, res_ctx,
-            icon_conns, all_icon_tiers)
-
+        # Minimum AZ height from icon rows
         icon_row_h = Inches(0.75)
         content_min_az = Inches(0.22 + 0.22 + 0.05) + icon_row_h * max(max_icon_rows, 1)
 
-        # Excel: no hard slide limit, allow expansion
-        min_az_h = max(min_az_h, content_min_az)
-        max_az_h = content_min_az + Inches(0.20)
-        max_az_h = max(max_az_h, min_az_from_gw)
+        # Minimum AZ height from gateway column
+        gw_min_h = Inches(0.15) + Inches(0.78) * max(gw_item_count, 1)
+        min_az_from_gw = (gw_min_h - az_gap * (n_az - 1)) / n_az
+
+        az_h = max(content_min_az, min_az_from_gw)
 
         total_az_gaps = az_gap * (n_az - 1)
-        min_vpc_h = vpc_header + vpc_pad + n_az * min_az_h + total_az_gaps
-        available_vpc_h = (cloud_bottom_default - L['vpc_y']
-                           - bottom_total - Inches(0.10))
-        L['vpc_h'] = max(available_vpc_h, min_vpc_h)
+        vpc_h = vpc_header + vpc_pad + n_az * az_h + total_az_gaps
+        L['vpc_h'] = vpc_h
 
-        actual_cloud_bottom = max(
-            cloud_bottom_default,
-            L['vpc_y'] + L['vpc_h'] + bottom_total + Inches(0.10))
-        L['cloud_bottom'] = actual_cloud_bottom
-        L['cloud_h'] = L['cloud_bottom'] - L['cloud_y']
+        # Cloud bottom = VPC bottom + bottom rows + small margin
+        cloud_bottom = L['vpc_y'] + vpc_h + bottom_total + Inches(0.10)
+        L['cloud_bottom'] = cloud_bottom
+        L['cloud_h'] = cloud_bottom - L['cloud_y']
 
-        # AZ rows
+        # --- Step 4: AZ row positions ---
         az_area_top = L['vpc_y'] + vpc_header
-        az_area_h = L['vpc_h'] - vpc_header - vpc_pad
-        az_h = (az_area_h - total_az_gaps) / n_az
-        az_h = min(az_h, max_az_h)
 
         L['az_ys'] = []
         for i in range(n_az):
@@ -533,16 +525,23 @@ class DiagramExcel:
         L['az_h'] = az_h
 
         last_az_y = L['az_ys'][-1] if L['az_ys'] else az_area_top
+        L['gw_x'] = L['vpc_x'] + vpc_pad
         L['gw_y'] = L['az_a_y']
         L['gw_h'] = (last_az_y + az_h) - L['az_a_y']
 
+        # --- Step 5: Subnet column positions ---
+        subnet_area_x = L['gw_x'] + L['gw_w'] + col_gap
+
         L['pub_x'] = subnet_area_x
         L['pub_w'] = col_widths['Public']
-        L['priv_x'] = L['pub_x'] + L['pub_w'] + col_gap
+        priv_offset = L['pub_w'] + (col_gap if L['pub_w'] > 0 else 0)
+        L['priv_x'] = L['pub_x'] + priv_offset
         L['priv_w'] = col_widths['Private']
-        L['iso_x'] = L['priv_x'] + L['priv_w'] + col_gap
+        iso_offset = L['priv_w'] + (col_gap if L['priv_w'] > 0 else 0)
+        L['iso_x'] = L['priv_x'] + iso_offset
         L['iso_w'] = col_widths['Isolated']
 
+        # --- Step 6: Bottom service rows ---
         L['infra_y'] = L['vpc_y'] + L['vpc_h'] + Inches(0.15) \
             if has_infra else None
         if has_svless:
@@ -555,8 +554,12 @@ class DiagramExcel:
 
         return L
 
-    def _calc_col_widths(self, tiers, azs, subnet_area_w, col_gap, res_ctx,
+    def _calc_col_widths(self, tiers, azs, col_gap, res_ctx,
                          icon_conns, all_icon_tiers):
+        """Calculate desired column widths based on content (not scaled to fill).
+
+        Returns (col_widths, max_icon_rows, active_tiers).
+        """
         icon_slot = Inches(1.10)
         min_col = Inches(1.80)
 
@@ -572,36 +575,25 @@ class DiagramExcel:
 
         active_tiers = [t for t in ["Public", "Private", "Isolated"]
                         if max_icons[t] > 0 or any(tiers.get(t, {}).get(az, []) for az in azs)]
-        n_gaps = max(len(active_tiers) - 1, 0)
-        available = subnet_area_w - col_gap * n_gaps
 
-        desired = {}
+        # Desired width = enough for all icons, minimum 1.80in per active tier
+        col_widths = {}
         for t in ["Public", "Private", "Isolated"]:
             if t in active_tiers:
-                desired[t] = max(max_icons[t] * icon_slot, min_col)
+                col_widths[t] = max(max_icons[t] * icon_slot, min_col)
             else:
-                desired[t] = 0  # inactive tier gets no width
-
-        total_desired = sum(desired.values())
-        if total_desired > 0 and available > 0:
-            scale = available / total_desired
-            col_widths = {t: desired[t] * scale for t in desired}
-        else:
-            n_active = len(active_tiers) if active_tiers else 1
-            equal = available / n_active if available > 0 else min_col
-            col_widths = {t: (equal if t in active_tiers else 0)
-                          for t in ["Public", "Private", "Isolated"]}
+                col_widths[t] = 0
 
         max_icon_rows = 1
         for tier in ["Public", "Private", "Isolated"]:
             for ai in range(len(azs)):
                 icons = all_subnet_icons.get((tier, ai), [])
-                if icons:
+                if icons and col_widths[tier] > 0:
                     rows = self._num_icon_rows(icons, col_widths[tier],
                                                tier, icon_conns, all_icon_tiers)
                     max_icon_rows = max(max_icon_rows, rows)
 
-        return col_widths, max_icon_rows
+        return col_widths, max_icon_rows, active_tiers
 
     # ==========================================================
     # Collect icons for a subnet (same as v2)
@@ -1244,8 +1236,8 @@ class DiagramExcel:
         if peerings:
             ibox_tw = Inches(1.2)
             peer_x = int(L['vpc_x'] + L['vpc_w'] - ibox_tw / 2)
-            slide_w = Inches(16)
-            max_x = int(slide_w - ibox_tw - Inches(0.05))
+            sheet_w = L['cloud_x'] + L['cloud_w'] + L['right_margin']
+            max_x = int(sheet_w - ibox_tw - Inches(0.05))
             if peer_x > max_x:
                 peer_x = max_x
             peer_y = int(L['vpc_y'] + L['vpc_h'] / 2 - Inches(0.24))
@@ -1257,9 +1249,10 @@ class DiagramExcel:
                 self._ibox(peer_x, int(peer_y + pi * Inches(1.0)),
                            "vpc_icon", peer_label, f"peering_{peer['id']}")
 
-        # Legend
+        # Legend (position relative to content, not fixed)
         legend_h = Inches(1.3)
-        legend_y = max(user_y + int(Inches(1.0)), int(Inches(7.3)))
+        legend_y = max(user_y + int(Inches(1.0)),
+                       int(L['cloud_bottom'] - Inches(1.6)))
         asg_h = Inches(0.15) * (len(asgs) + 1) if asgs else 0
         total_needed = int(legend_h + Inches(0.10) + asg_h)
         cloud_bottom_int = int(L['cloud_bottom'])
