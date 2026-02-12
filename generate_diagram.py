@@ -278,19 +278,77 @@ class AWSConfigParser:
                 return rel.get("resourceId", "")
         return ""
 
+    def _build_subnet_vpc_map(self):
+        """Build subnet_id -> vpc_id map from all available sources.
+
+        When Subnet configuration is empty, we reverse-engineer the mapping
+        from EC2 instances, ALBs, NAT Gateways, etc. that DO have both
+        subnetId and vpcId in their configuration.
+        """
+        s2v = {}
+
+        # Source 1: Subnet configuration itself
+        for item in self.by_type["AWS::EC2::Subnet"]:
+            cfg = item.get("configuration", {})
+            if isinstance(cfg, dict) and cfg.get("vpcId"):
+                s2v[item["resourceId"]] = cfg["vpcId"]
+
+        # Source 2: Subnet relationships
+        for item in self.by_type["AWS::EC2::Subnet"]:
+            sid = item["resourceId"]
+            if sid not in s2v:
+                vpc = self._get_related_vpc(item)
+                if vpc:
+                    s2v[sid] = vpc
+
+        # Source 3: EC2 instances (subnetId + vpcId in config)
+        for item in self.by_type["AWS::EC2::Instance"]:
+            cfg = item.get("configuration", {})
+            if isinstance(cfg, dict):
+                sub = cfg.get("subnetId", "")
+                vpc = cfg.get("vpcId", "")
+                if sub and vpc and sub not in s2v:
+                    s2v[sub] = vpc
+
+        # Source 4: NAT Gateways
+        for item in self.by_type["AWS::EC2::NatGateway"]:
+            cfg = item.get("configuration", {})
+            if isinstance(cfg, dict):
+                sub = cfg.get("subnetId", "")
+                vpc = cfg.get("vpcId", "")
+                if sub and vpc and sub not in s2v:
+                    s2v[sub] = vpc
+
+        # Source 5: ALB availability zones
+        for item in self.by_type["AWS::ElasticLoadBalancingV2::LoadBalancer"]:
+            cfg = item.get("configuration", {})
+            if isinstance(cfg, dict):
+                vpc = cfg.get("vpcId", "")
+                if vpc:
+                    for az in cfg.get("availabilityZones", []):
+                        sub = az.get("subnetId", "")
+                        if sub and sub not in s2v:
+                            s2v[sub] = vpc
+
+        return s2v
+
     def get_subnets_for_vpc(self, vpc_id):
         tier_map = self._build_subnet_tier_map(vpc_id)
         default_tier = tier_map.get("_main", "Private")
+        subnet_vpc_map = self._build_subnet_vpc_map()
         subnets = []
         for item in self.by_type["AWS::EC2::Subnet"]:
             cfg = item.get("configuration", {})
             if not isinstance(cfg, dict):
                 cfg = {}
+            sid = item["resourceId"]
 
-            # VPC ID: try configuration first, fallback to relationships
+            # VPC ID: configuration > relationships > reverse-engineered map
             item_vpc = cfg.get("vpcId", "")
             if not item_vpc:
                 item_vpc = self._get_related_vpc(item)
+            if not item_vpc:
+                item_vpc = subnet_vpc_map.get(sid, "")
 
             if item_vpc != vpc_id:
                 continue
