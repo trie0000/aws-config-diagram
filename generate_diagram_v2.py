@@ -1589,11 +1589,12 @@ class DiagramV2:
 # ============================================================
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python generate_diagram_v2.py <config.json> [--list] [--vpc vpc-id1,vpc-id2,...]")
+        print("Usage: python generate_diagram_v2.py <config.json> [--list] [--vpc vpc-id1,vpc-id2,...] [--debug]")
         print()
         print("Options:")
         print("  --list           List all VPCs in the config and exit")
         print("  --vpc id1,id2    Draw specific VPC(s), each on its own slide")
+        print("  --debug          Show detailed resource counts per VPC")
         print()
         print("Default: auto-selects the VPC with the most resources")
         sys.exit(1)
@@ -1627,6 +1628,33 @@ def main():
     for i, arg in enumerate(sys.argv):
         if arg == "--vpc" and i + 1 < len(sys.argv):
             vpc_ids = [v.strip() for v in sys.argv[i + 1].split(",")]
+
+    # --debug: show resource breakdown per VPC
+    debug = "--debug" in sys.argv
+    if debug:
+        dg = DiagramV2(parser)
+        vpcs = dg.list_vpcs()
+        for v in sorted(vpcs, key=lambda x: -x["score"]):
+            vid = v["id"]
+            default_tag = " (default)" if v.get("is_default") else ""
+            print(f"\n  VPC: {v['name']} ({vid}) {v['cidr']}{default_tag}")
+            subs = parser.get_subnets_for_vpc(vid)
+            print(f"    Subnets: {len(subs)}")
+            for s in subs:
+                print(f"      {s['id']} {s['tier']:10s} {s['az']:20s} {s['cidr']}")
+                instances = parser.get_instances_for_subnet(s['id'])
+                for inst in instances:
+                    print(f"        EC2: {inst['id']} {inst['name']}")
+            albs = parser.get_albs_for_vpc(vid)
+            print(f"    ALBs: {len(albs)}")
+            for a in albs:
+                print(f"      {a['id']} {a['name']}")
+            rdss = parser.get_rds_for_vpc(vid)
+            print(f"    RDS: {len(rdss)}")
+            nats = parser.get_nat_gateways_for_vpc(vid)
+            print(f"    NAT GW: {len(nats)}")
+            igw = parser.get_igw_for_vpc(vid)
+            print(f"    IGW: {'yes' if igw else 'no'}")
 
     print(f"\nGenerating v2 diagram...")
     DiagramV2(parser).generate(out, vpc_ids=vpc_ids)

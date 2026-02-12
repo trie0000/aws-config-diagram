@@ -126,6 +126,32 @@ class AWSConfigParser:
         "AWS::ElasticBeanstalk::Environment",
     }
 
+    @staticmethod
+    def _to_camel(key):
+        """Convert PascalCase or mixed key to camelCase.
+
+        CidrBlock -> cidrBlock, VpcId -> vpcId, DBInstanceClass -> dBInstanceClass
+        """
+        if not key or not key[0].isupper():
+            return key
+        # Handle leading uppercase run (e.g. DBInstance -> dBInstance)
+        i = 0
+        while i < len(key) - 1 and key[i].isupper() and key[i + 1].isupper():
+            i += 1
+        if i == 0:
+            return key[0].lower() + key[1:]
+        # e.g. "DBInstanceClass" -> i=1, want "dBInstanceClass"
+        return key[:i].lower() + key[i:]
+
+    @classmethod
+    def _normalize_keys(cls, obj):
+        """Recursively convert all dict keys from PascalCase to camelCase."""
+        if isinstance(obj, dict):
+            return {cls._to_camel(k): cls._normalize_keys(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [cls._normalize_keys(item) for item in obj]
+        return obj
+
     def __init__(self, snapshot_path):
         with open(snapshot_path, "r", encoding="utf-8") as f:
             self.data = json.load(f)
@@ -135,6 +161,33 @@ class AWSConfigParser:
         self.by_id = {}
 
         for item in self.items:
+            # Parse configuration if it's a JSON string
+            cfg = item.get("configuration")
+            if isinstance(cfg, str):
+                try:
+                    item["configuration"] = json.loads(cfg)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+            # Normalize configuration keys: PascalCase -> camelCase
+            cfg = item.get("configuration")
+            if isinstance(cfg, dict):
+                item["configuration"] = self._normalize_keys(cfg)
+
+            # Normalize tags: list-of-dicts -> simple dict
+            tags = item.get("tags")
+            if isinstance(tags, list):
+                tag_dict = {}
+                for t in tags:
+                    if isinstance(t, dict):
+                        k = t.get("key", t.get("Key", ""))
+                        v = t.get("value", t.get("Value", ""))
+                        if k:
+                            tag_dict[k] = v
+                item["tags"] = tag_dict
+            elif not isinstance(tags, dict):
+                item["tags"] = {}
+
             rt = item.get("resourceType", "")
             rid = item.get("resourceId", "")
             if rt in self.AUDIT_RESOURCE_TYPES:
