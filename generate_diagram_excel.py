@@ -447,7 +447,7 @@ class DiagramExcel:
         L = {}
 
         L['left_w'] = Inches(2.3) if has_edge else Inches(1.3)
-        L['right_margin'] = Inches(0.9) if has_peering else Inches(0.3)
+        L['right_margin'] = Inches(1.6) if has_peering else Inches(0.3)
 
         L['cloud_x'] = L['left_w']
         L['cloud_y'] = Inches(0.35)
@@ -938,6 +938,26 @@ class DiagramExcel:
         has_svless = bool(svless_items)
         has_infra = bool(infra_items)
 
+        # Detect whether Isolated subnet exists
+        has_isolated = any(
+            tiers.get("Isolated", {}).get(az, []) for az in azs)
+
+        # Collect "orphan" DB services — RDS/ElastiCache/Redshift
+        # that don't belong to any Isolated subnet (placed outside VPC)
+        all_vpc_sub_ids = {s["id"] for s in subs}
+        orphan_db_items = []
+        if not has_isolated:
+            for db in rdss:
+                orphan_db_items.append(
+                    ("rds", f"Amazon RDS\n{db.get('engine','')}", f"rds_{db['id']}_0"))
+            for cc in cache_clusters:
+                orphan_db_items.append(
+                    ("elasticache", f"ElastiCache\n{cc['engine']}", f"cache_{cc['id']}"))
+            for rc in rs_clusters:
+                orphan_db_items.append(
+                    ("redshift", f"Redshift\n{rc['name'][:10]}", f"redshift_{rc['id']}"))
+        has_orphan_db = bool(orphan_db_items)
+
         res_ctx = {
             'nats': nats, 'asg_by_subnet': asg_by_subnet,
             'eb_envs': eb_envs, 'ecs_services': ecs_services,
@@ -964,9 +984,13 @@ class DiagramExcel:
                         all_icon_tiers[key] = tier_name
         for _icon, _label, key in infra_items + svless_items:
             all_icon_tiers[key] = "external"
+        for _icon, _label, key in orphan_db_items:
+            all_icon_tiers[key] = "external"
 
+        # Widen right margin to fit orphan DB services
         gw_item_count = len(gw_before_alb) + len(albs) + len(gw_after_alb)
-        L = self._calc_layout(has_edge, has_peering, has_svless, has_infra,
+        L = self._calc_layout(has_edge, has_peering or has_orphan_db,
+                              has_svless, has_infra,
                               tiers, azs, res_ctx, gw_item_count,
                               icon_conns, all_icon_tiers)
 
@@ -1170,6 +1194,16 @@ class DiagramExcel:
             for idx, (icon, label, key) in enumerate(svless_items):
                 self._ibox(int(bottom_start_x + bottom_svc_gap * idx),
                            int(L['svless_y']), icon, label, key)
+
+        # Orphan DB services (RDS/ElastiCache/Redshift outside VPC)
+        if orphan_db_items:
+            ibox_tw = Inches(1.2)
+            db_x = int(L['vpc_x'] + L['vpc_w'] + Inches(0.15))
+            db_y_start = int(L['vpc_y'] + Inches(0.30))
+            db_gap = Inches(0.85)
+            for di, (icon, label, key) in enumerate(orphan_db_items):
+                self._ibox(db_x, int(db_y_start + db_gap * di),
+                           icon, label, key)
 
         # VPC Peering
         if peerings:
