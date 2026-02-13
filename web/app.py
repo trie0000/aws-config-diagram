@@ -8,8 +8,23 @@ AWS Config Diagram Generator の Web バックエンド。
     source venv/bin/activate && uvicorn web.app:app --reload --port 8000
 """
 
-from fastapi import FastAPI
+import json
+import os
+import sys
+import tempfile
+
+from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+
+# プロジェクトルートを Python パスに追加（aws_config_parser 等のインポート用）
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from aws_config_parser import AWSConfigParser
+from diagram_state import DiagramStateConverter
+from layout_engine import LayoutEngine
 
 app = FastAPI(
     title="AWS Config Diagram Generator",
@@ -36,9 +51,117 @@ async def health_check():
     return {"status": "ok", "version": "0.1.0"}
 
 
-# --- 以下、Phase 1.5 で実装予定 ---
+@app.post("/api/parse")
+async def parse_config(file: UploadFile = File(...)):
+    """Config JSON をパースして DiagramState（レイアウト計算済み）を返す。
 
-# POST /api/parse        - Config JSON パース → DiagramState
-# POST /api/layout       - DiagramState → レイアウト計算済み DiagramState
-# POST /api/export/xlsx  - DiagramState → Excel ダウンロード
-# POST /api/export/pptx  - DiagramState → PowerPoint ダウンロード
+    1. JSON ファイルを受け取り
+    2. AWSConfigParser でパース
+    3. DiagramStateConverter で DiagramState に変換
+    4. LayoutEngine で座標計算
+    5. TypeScript 互換の camelCase JSON を返す
+    """
+    if not file.filename or not file.filename.endswith(".json"):
+        raise HTTPException(status_code=400, detail="JSON ファイルを指定してください")
+
+    # 一時ファイルに保存（AWSConfigParser がファイルパスを要求するため）
+    try:
+        content = await file.read()
+        # JSON として有効か検証
+        json.loads(content)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        raise HTTPException(status_code=400, detail="無効な JSON ファイルです")
+
+    with tempfile.NamedTemporaryFile(
+        mode="wb", suffix=".json", delete=False,
+    ) as tmp:
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        # パース → DiagramState 変換 → レイアウト計算
+        parser = AWSConfigParser(tmp_path)
+        converter = DiagramStateConverter(parser)
+        title = os.path.splitext(file.filename)[0]
+        state = converter.convert(title=title)
+
+        engine = LayoutEngine()
+        state = engine.calculate(state)
+
+        return state.to_json()
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"パース処理エラー: {str(e)}")
+
+    finally:
+        os.unlink(tmp_path)
+
+
+@app.post("/api/export/xlsx")
+async def export_xlsx(file: UploadFile = File(...)):
+    """Config JSON → Excel (.xlsx) ファイルを生成してダウンロード"""
+    return await _export_file(file, "xlsx")
+
+
+@app.post("/api/export/pptx")
+async def export_pptx(file: UploadFile = File(...)):
+    """Config JSON → PowerPoint (.pptx) ファイルを生成してダウンロード"""
+    return await _export_file(file, "pptx")
+
+
+async def _export_file(file: UploadFile, format: str) -> FileResponse:
+    """共通エクスポート処理"""
+    if not file.filename or not file.filename.endswith(".json"):
+        raise HTTPException(status_code=400, detail="JSON ファイルを指定してください")
+
+    try:
+        content = await file.read()
+        json.loads(content)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        raise HTTPException(status_code=400, detail="無効な JSON ファイルです")
+
+    with tempfile.NamedTemporaryFile(
+        mode="wb", suffix=".json", delete=False,
+    ) as tmp:
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        parser = AWSConfigParser(tmp_path)
+        base_name = os.path.splitext(file.filename)[0]
+
+        if format == "xlsx":
+            from diagram_excel import DiagramExcel
+            output_path = os.path.join(
+                tempfile.gettempdir(), f"{base_name}.xlsx")
+            diagram = DiagramExcel(parser)
+            diagram.generate(output_path)
+            media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        elif format == "pptx":
+            from diagram_pptx import DiagramV2
+            output_path = os.path.join(
+                tempfile.gettempdir(), f"{base_name}.pptx")
+            diagram = DiagramV2(parser)
+            diagram.generate(output_path)
+            media_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        else:
+            raise HTTPException(status_code=400, detail=f"未対応の形式: {format}")
+
+        return FileResponse(
+            path=output_path,
+            filename=f"{base_name}.{format}",
+            media_type=media_type,
+        )
+
+    except ImportError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"エクスポートエンジンの読み込みに失敗: {str(e)}",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"エクスポートエラー: {str(e)}",
+        )
+    finally:
+        os.unlink(tmp_path)

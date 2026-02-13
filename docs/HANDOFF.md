@@ -1,10 +1,10 @@
 # HANDOFF.md - セッション引き継ぎ
 
-> 最終更新: 2026-02-13 セッション7 (技術スタック確定 + 全ドキュメント更新)
+> 最終更新: 2026-02-13 セッション9 (バックエンドパイプライン完成)
 
 ## 現在の状態
 
-**技術スタック確定、全ドキュメント更新完了**。Web エディタは **React + TypeScript (Vite) + ローカル FastAPI** 構成に決定。外部サーバー通信は一切行わず、localhost完結。Excel/PPTX出力は既存Pythonエンジンをそのまま流用。全ライブラリのライセンス確認済み（MIT/BSD、商用利用OK）。次は実装開始。
+**バックエンド API パイプライン完成**。Config JSON → DiagramState → レイアウト計算 → API レスポンスの一連が動作確認済み。Excel/PPTX エクスポートも API 経由で動作。フロントエンド API クライアントも作成済み。次は React SVG Canvas コンポーネントでの構成図描画。
 
 ## 完了済み（セッション1-4: v4.2まで）
 
@@ -144,18 +144,83 @@ docs/ROADMAP.md                  - Phase 1.5 技術スタック・アーキテ�
 docs/HANDOFF.md                  - 更新
 ```
 
+## 完了済み（セッション8: プロジェクトセットアップ + push）
+
+- [x] `frontend/`: Vite + React 19 + TypeScript 5.x プロジェクト作成
+- [x] Tailwind CSS v4 + shadcn/ui セットアップ
+- [x] `frontend/vite.config.ts`: @/ エイリアス、localhost:8000 プロキシ設定
+- [x] `frontend/src/types/diagram.ts`: DiagramState 型定義（ノード/エッジ/メタ）
+- [x] `frontend/src/App.tsx`: 初期シェル（ツールバー + Canvas プレースホルダー）
+- [x] ディレクトリ構成: components/{canvas,panels,toolbar}/, hooks/, types/, services/
+- [x] `web/app.py`: FastAPI スケルトン（localhost専用、CORS設定、/api/health）
+- [x] `web/routes/`: ルート分割用ディレクトリ
+- [x] venv 再作成（インタプリタパス修正）+ FastAPI/uvicorn/pydantic インストール
+- [x] `requirements.txt` 更新（fastapi, uvicorn, pydantic 追加）
+- [x] `.gitignore` 更新（frontend/node_modules/, frontend/dist/, .env, uploads/ 追加）
+- [x] git commit & push 完了（2コミット: docs + project setup）
+
+### 変更ファイル
+
+```
+.gitignore                           - frontend/node_modules等を追加
+requirements.txt                     - fastapi, uvicorn, pydantic 追加
+frontend/                            - Vite+React+TS プロジェクト（新規）
+frontend/src/types/diagram.ts        - DiagramState 型定義（新規）
+frontend/src/App.tsx                 - 初期シェル
+web/__init__.py                      - バックエンドパッケージ（新規）
+web/app.py                           - FastAPI スケルトン（新規）
+web/routes/__init__.py               - ルートパッケージ（新規）
+```
+
+## 完了済み（セッション9: バックエンドパイプライン実装）
+
+- [x] `diagram_state.py`: Pydantic v2 モデル + DiagramStateConverter
+  - DiagramNode, DiagramEdge, DiagramMeta, DiagramState
+  - AWSConfigParser → DiagramState 変換（30+リソースタイプ対応）
+  - camelCase JSON 出力（TypeScript 互換）
+  - テスト: 66ノード、24タイプ（実データ 259リソースから生成）
+- [x] `layout_engine.py`: ピクセル座標レイアウトエンジン
+  - VPC > AZ > Subnet > Resource の4階層ネスト配置
+  - Subnet tier 別列配置（Public/Private/Isolated）
+  - VPC外サービス配置（edge/data/support 3カテゴリ）
+  - コンテンツ駆動サイズ計算
+  - テスト: 全66ノードの座標・サイズ計算成功
+- [x] `web/app.py`: FastAPI エンドポイント実装
+  - POST /api/parse: Config JSON → DiagramState（レイアウト計算済み）
+  - POST /api/export/xlsx: Excel ダウンロード
+  - POST /api/export/pptx: PowerPoint ダウンロード
+  - 全3エンドポイント curl テスト通過
+- [x] `frontend/src/services/api.ts`: TypeScript API クライアント
+  - parseConfigFile(), exportDiagram(), healthCheck()
+  - Blob ダウンロード対応、Content-Disposition ファイル名解析
+- [x] UI 画面設計ドキュメント
+  - `docs/design/UI_SCREEN_DESIGN.md`: 26機能、13画面、ワイヤーフレーム
+  - `docs/design/CHATGPT_UI_PROMPTS.md`: ChatGPT UI モックアップ生成プロンプト11本
+
+### 変更ファイル
+
+```
+diagram_state.py                        - DiagramState Pydantic モデル + 変換器（新規）
+layout_engine.py                        - ピクセル座標レイアウトエンジン（新規）
+web/app.py                              - FastAPI エンドポイント実装（大幅更新）
+frontend/src/services/api.ts            - TypeScript API クライアント（新規）
+docs/design/UI_SCREEN_DESIGN.md         - UI 画面設計（新規）
+docs/design/CHATGPT_UI_PROMPTS.md       - ChatGPT プロンプト集（新規）
+docs/HANDOFF.md                         - 更新
+```
+
 ## 次のアクション
 
-1. **Web エディタ MVP 実装開始**（Phase 1.5: 最優先）
-   - `frontend/`: Vite + React + TypeScript プロジェクトセットアップ
-   - `diagram_state.py`: DiagramState データモデル設計・実装
-   - `layout_engine.py`: 既存 `_calc_layout()` をExcel/PPTXから抽出・共通化
-   - `web/app.py`: FastAPI バックエンド (localhost専用)
-   - React SVG Canvas コンポーネント + ドラッグ&ドロップ
-   - Excel/PPTX ダウンロード（既存エンジン流用）
-2. **既存パーサー改修** — CONFIG_JSON_ANALYSIS.md の知見を反映（Web エディタと並行可）
-3. **Phase 2 開発** — VPCE データフロー矢印、SG 要約マトリクス
-4. **Phase 3 開発** — 差分比較（差別化の核）
+1. **React SVG Canvas コンポーネント** — DiagramState を SVG で描画
+   - VPC/AZ/Subnet の階層矩形
+   - リソースアイコン（AWS 公式 SVG）
+   - ズーム・パン・選択
+2. **ドラッグ&ドロップ** — リソース移動、位置保存
+3. **リソース詳細パネル** — クリックで AWS Config メタデータ表示
+4. **Edges 実装** — get_service_connections() が 0 件を返す問題の調査
+5. **既存パーサー改修** — CONFIG_JSON_ANALYSIS.md の知見を反映
+6. **Phase 2 開発** — VPCE データフロー矢印、SG 要約マトリクス
+7. **Phase 3 開発** — 差分比較（差別化の核）
 
 ## 未解決の問題
 
