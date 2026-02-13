@@ -200,6 +200,41 @@ class DiagramStateConverter:
         self.parser = parser
         self._edge_counter = 0
 
+    def _enrich_metadata(self, resource_id: str, metadata: dict) -> dict:
+        """生データからタグ・SG情報を metadata に追加"""
+        raw = self.parser.by_id.get(resource_id, {})
+        # タグ
+        tags = raw.get("tags", {})
+        if tags:
+            metadata["tags"] = tags
+        # SG 詳細（EC2, ALB, RDS 等）
+        cfg = raw.get("configuration", {})
+        sgs = cfg.get("securityGroups", [])
+        if sgs and isinstance(sgs, list):
+            if isinstance(sgs[0], dict):
+                # EC2 形式: [{"groupId": "...", "groupName": "..."}]
+                metadata["securityGroups"] = [
+                    {"id": sg.get("groupId", ""), "name": sg.get("groupName", "")}
+                    for sg in sgs
+                ]
+            elif isinstance(sgs[0], str):
+                # ALB 形式: ["sg-xxx"]
+                metadata["securityGroups"] = [
+                    {"id": sg_id, "name": ""} for sg_id in sgs
+                ]
+        # RDS SG
+        vpc_sgs = cfg.get("vpcSecurityGroups", [])
+        if vpc_sgs:
+            metadata["securityGroups"] = [
+                {"id": sg.get("vpcSecurityGroupId", ""), "status": sg.get("status", "")}
+                for sg in vpc_sgs
+            ]
+        # ARN
+        arn = raw.get("ARN", "")
+        if arn:
+            metadata["arn"] = arn
+        return metadata
+
     def convert(self, title: str = "") -> DiagramState:
         """パーサー出力 → DiagramState に変換
 
@@ -230,6 +265,12 @@ class DiagramStateConverter:
 
         # 接続線（エッジ）
         self._add_service_connections(state)
+
+        # メタデータ充実（タグ・SG・ARN を生データから追加）
+        for node in state.nodes.values():
+            resource_id = node.metadata.get("awsResourceId", "")
+            if resource_id:
+                node.metadata = self._enrich_metadata(resource_id, node.metadata)
 
         return state
 
@@ -626,30 +667,90 @@ class DiagramStateConverter:
     # ----------------------------------------------------------------
 
     def _add_service_connections(self, state: DiagramState) -> None:
-        """パーサーの get_service_connections() からエッジを生成"""
+        """パーサーからエッジを生成（3ソース）"""
+
+        # 1. get_service_connections(): CloudFront→ALB, CloudTrail→S3 等
         try:
             connections = self.parser.get_service_connections()
+            for conn in connections:
+                # キーは from_id / to_id（パーサー側の命名）
+                src_id = conn.get("from_id", "")
+                dst_id = conn.get("to_id", "")
+                src_node_id = f"node-{src_id}"
+                dst_node_id = f"node-{dst_id}"
+
+                if src_node_id in state.nodes and dst_node_id in state.nodes:
+                    self._add_edge(
+                        state, src_node_id, dst_node_id,
+                        edge_type="connection",
+                        label=conn.get("label", None),
+                        metadata={
+                            "connectionType": f"{conn.get('from_type', '')}→{conn.get('to_type', '')}",
+                        },
+                    )
         except Exception:
-            return
+            pass
 
-        for conn in connections:
-            src_id = conn.get("source_id", "")
-            dst_id = conn.get("target_id", "")
-            src_node_id = f"node-{src_id}"
-            dst_node_id = f"node-{dst_id}"
+        # 2. SG ベース接続: SG→SG の参照 + SG→リソース のマップ で
+        #    リソース→リソース のエッジを生成
+        try:
+            sg_connections = self.parser.get_sg_connections()
+            sg_to_resources = self.parser.build_sg_to_resources_map()
 
-            # 両端のノードが存在する場合のみエッジを追加
-            if src_node_id in state.nodes and dst_node_id in state.nodes:
-                self._add_edge(
-                    state, src_node_id, dst_node_id,
-                    edge_type="connection",
-                    label=conn.get("label", None),
-                    metadata={
-                        "connectionType": conn.get("type", ""),
-                        "protocol": conn.get("protocol", ""),
-                        "port": conn.get("port", ""),
-                    },
-                )
+            # SG→リソースの逆引き: resource_id → node_id
+            sg_to_node_ids: dict[str, list[str]] = {}
+            for sg_id, resources in sg_to_resources.items():
+                node_ids = []
+                for r in resources:
+                    node_id = f"node-{r['id']}"
+                    if node_id in state.nodes:
+                        node_ids.append(node_id)
+                if node_ids:
+                    sg_to_node_ids[sg_id] = node_ids
+
+            # SG→SG → リソース→リソース に展開
+            seen_edges: set[tuple[str, str]] = set()
+            for conn in sg_connections:
+                from_sg = conn.get("from_sg", "")
+                to_sg = conn.get("to_sg", "")
+                port = conn.get("port", "")
+                protocol = conn.get("protocol", "")
+
+                # 同一SG間の自己参照はスキップ
+                if from_sg == to_sg:
+                    continue
+
+                from_nodes = sg_to_node_ids.get(from_sg, [])
+                to_nodes = sg_to_node_ids.get(to_sg, [])
+
+                for src_node_id in from_nodes:
+                    for dst_node_id in to_nodes:
+                        if src_node_id == dst_node_id:
+                            continue
+                        edge_key = (src_node_id, dst_node_id)
+                        if edge_key in seen_edges:
+                            continue
+                        seen_edges.add(edge_key)
+
+                        label_parts = []
+                        if port:
+                            label_parts.append(str(port))
+                        if protocol and protocol not in ("-1", ""):
+                            label_parts.append(protocol)
+
+                        self._add_edge(
+                            state, src_node_id, dst_node_id,
+                            edge_type="data-flow",
+                            label="/".join(label_parts) if label_parts else None,
+                            metadata={
+                                "fromSg": from_sg,
+                                "toSg": to_sg,
+                                "port": str(port),
+                                "protocol": protocol,
+                            },
+                        )
+        except Exception:
+            pass
 
     def _add_edge(
         self,

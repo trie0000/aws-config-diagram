@@ -10,8 +10,8 @@
 
 import type { DiagramState } from '../types/diagram'
 
-/** API ベース URL（開発環境: FastAPI デフォルトポート） */
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000'
+/** API ベース URL（Vite プロキシ経由: 空文字 = 同一オリジン → /api → localhost:8000） */
+const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
 /** API レスポンスエラー */
 export class ApiError extends Error {
