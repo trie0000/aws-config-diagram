@@ -26,10 +26,14 @@
 | 入力 | AWSアカウント接続 | Config JSONファイル |
 | セキュリティ | クレデンシャル外部送信 | ローカル完結 |
 | 出力 | Web UI / PNG | Excel/PPTX（編集可能） |
-| ネットワーク | 必須 | 不要 |
+| ネットワーク | 必須 | 不要（localhost完結） |
 | コスト | $29〜49+/月 | 無料（OSS） → 将来有料版あり |
+| Web編集 | Web UI のみ | Web + Excel/PPTX エクスポート |
+| データ保護 | クラウド送信あり | **ローカル完結（データ外部送信なし）** |
 | 差分比較 | なし | 対応予定 |
 | VPCEフロー | なし | 対応予定 |
+
+> 詳細な競合分析・差別化戦略は [COMPETITIVE_ANALYSIS.md](./COMPETITIVE_ANALYSIS.md) を参照。
 
 ---
 
@@ -48,7 +52,23 @@
 - [x] VPC Endpoint 検出・表示
 - [x] サポートサービスのバッジ表示（KMS, CloudTrail等）
 
-### Phase 2: データフロー強化（次期開発）
+### Phase 1.5: Web エディタ（最優先・次期開発）
+
+ブラウザ上でAWS構成図をインタラクティブに表示・編集できるWebアプリケーション。
+
+- [ ] Config JSON アップロード → ブラウザ上で構成図を自動表示
+- [ ] ドラッグ&ドロップでリソース位置の調整
+- [ ] リソースクリックで詳細情報パネル表示
+- [ ] AWS外システムの手動追加（オンプレ、SaaS等）
+- [ ] コメント/注釈の追加（ノードへのアンカー付き）
+- [ ] ユーザー修正の維持（`isUserModified` フラグ、JSON再インポート時のマージ）
+- [ ] Excel/PPTX ダウンロード（既存エンジン流用）
+- [ ] 位置ロック / 折りたたみ / レイヤー管理
+- [ ] Undo/Redo
+
+> 詳細仕様は [WEB_EDITOR_SPEC.md](./design/WEB_EDITOR_SPEC.md) を参照。
+
+### Phase 2: データフロー強化
 
 - [ ] VPC Endpoint経由のデータフロー矢印
   - Gateway型: routeTableIds → Subnet逆引き → 接続元特定
@@ -67,9 +87,10 @@
 - [ ] 差分サマリーテキスト（別シート or ヘッダー）
 - [ ] 期間指定での変更追跡（S3に蓄積されたスナップショットを複数入力）
 
-### Phase 4: 課金対応・拡張
+### Phase 4: SaaS化・課金対応
 
-- [ ] Web UI（ブラウザでドラッグ&ドロップでJSON投入 → 図をダウンロード）
+- [ ] リアルタイム共同編集（CRDT/WebSocket）
+- [ ] チーム共有・権限管理（viewer/commenter/editor/admin）
 - [ ] マルチリージョン / マルチアカウント対応
 - [ ] Transit Gateway / Direct Connect 対応
 - [ ] PDF出力
@@ -91,34 +112,51 @@
 
 ```
 aws-config-diagram/
-├── aws_config_parser.py    # 入力層: Config JSON → 構造化データ
-├── diagram_excel.py        # 出力層: 構造化データ → Excel
-├── diagram_pptx.py         # 出力層: 構造化データ → PPTX
-├── (将来) diagram_web.py   # 出力層: 構造化データ → Web UI
-├── (将来) diff_engine.py   # 差分層: 2つの構造化データ → 差分
-├── icons/                  # AWSサービスアイコン
+├── aws_config_parser.py    # 入力層: Config JSON → 構造化データ（既存）
+├── diagram_state.py        # 状態層: 構造化データ → 編集可能な DiagramState
+├── layout_engine.py        # レイアウト層: DiagramState → 座標計算（共通）
+├── diagram_excel.py        # 出力層: → Excel（既存）
+├── diagram_pptx.py         # 出力層: → PPTX（既存）
+├── web/                    # バックエンド（FastAPI, localhost専用）
+│   └── app.py
+├── frontend/               # フロントエンド（React + TypeScript + Vite）
+│   └── src/
+│       ├── components/     # Canvas, Panels, Toolbar
+│       ├── hooks/          # 状態管理, ドラッグ, Undo/Redo
+│       ├── types/          # DiagramState 型定義
+│       └── services/       # API クライアント
+├── (将来) diff_engine.py   # 差分層: 2つの DiagramState → 差分
+├── icons/                  # AWSサービスアイコン (PNG)
 ├── docs/
-│   ├── PRODUCT_VISION.md   # このファイル（プロダクト方針）
 │   ├── design/
-│   │   └── ARCHITECTURE.md # 技術設計
-│   ├── ROADMAP.md          # 開発ロードマップ
-│   └── HANDOFF.md          # セッション引き継ぎ
-├── tests/                  # (将来) 自動テスト
-├── CLAUDE.md               # Claude Code 開発規約
-├── README.md               # ユーザー向け使い方
-└── requirements.txt        # Python依存パッケージ
+│   │   ├── ARCHITECTURE.md
+│   │   ├── WEB_EDITOR_SPEC.md
+│   │   ├── CODING_STANDARDS.md
+│   │   └── CONFIG_JSON_ANALYSIS.md
+│   ├── PRODUCT_VISION.md   # このファイル
+│   ├── COMPETITIVE_ANALYSIS.md
+│   ├── ROADMAP.md
+│   └── HANDOFF.md
+├── tests/                  # pytest（バックエンド）
+├── test/                   # AWS CLI テストスクリプト + スナップショット
+├── CLAUDE.md
+├── README.md
+└── requirements.txt
 ```
 
 ### 技術スタック
 
 | レイヤー | 技術 | 理由 |
 |---------|------|------|
-| 言語 | Python 3.11+ | データ処理・ライブラリ豊富 |
+| フロントエンド | React 19 + TypeScript + Vite | 高品質UI、型安全、コンポーネント設計 |
+| UIライブラリ | shadcn/ui + Tailwind CSS | 洗練されたデザイン、カスタマイズ容易 |
+| バックエンド | Python 3.11+ + FastAPI | 既存パーサー・エクスポートエンジン流用 |
 | Excel出力 | openpyxl + DrawingML(lxml) | サイズ制限なし、編集可能 |
 | PPTX出力 | python-pptx + lxml | プレゼン用途 |
-| Web UI (将来) | FastAPI + HTMX or Streamlit | 軽量、デプロイ容易 |
-| テスト (将来) | pytest | 標準 |
-| 配布 (将来) | PyPI or Docker | CLI配布 or SaaS化 |
+| State管理 | DiagramState (TypeScript型 ↔ Python dict) | フロント↔バックエンド間のブリッジ |
+| 通信 | REST API (localhost のみ) | **外部サーバー通信なし** |
+| テスト | pytest (BE) + Vitest (FE) | 各レイヤーの自動テスト |
+| 配布 (将来) | PyPI (`pip install`) → `serve` コマンド | ワンコマンド起動 |
 
 ---
 
@@ -128,9 +166,10 @@ aws-config-diagram/
 
 | フェーズ | モデル | 内容 |
 |---------|-------|------|
-| 現在 | 無料（OSS） | GitHub公開、基本機能 |
+| 現在 | 無料（OSS） | GitHub公開、基本機能 + CLI |
+| Phase 1.5後 | 無料（OSS） | Web エディタ公開（差別化の基盤） |
 | Phase 3後 | Freemium | 基本図=無料、差分比較=有料 |
-| Phase 4 | SaaS | Web UI、チーム共有、API |
+| Phase 4 | SaaS | チーム共有、権限管理、API |
 
 ### 有料機能の候補
 
@@ -144,9 +183,10 @@ aws-config-diagram/
 
 ## 成功指標
 
-| 指標 | Phase 1 (現在) | Phase 3 | Phase 4 |
-|------|---------------|---------|---------|
-| 対応リソースタイプ | 30+ | 30+ | 50+ |
-| 出力形式 | Excel, PPTX | + 差分図 | + Web, PDF |
-| 自動テスト | なし | パーサー | E2E |
-| ユーザー数 | 自分 | 社内展開 | 外部公開 |
+| 指標 | Phase 1 (現在) | Phase 1.5 | Phase 3 | Phase 4 |
+|------|---------------|-----------|---------|---------|
+| 対応リソースタイプ | 30+ | 30+ | 30+ | 50+ |
+| 出力形式 | Excel, PPTX | + Web UI | + 差分図 | + PDF |
+| インタラクション | なし（CLI） | ドラッグ&ドロップ、コメント | + 差分ハイライト | + 共同編集 |
+| 自動テスト | なし | パーサー | + Diff | E2E |
+| ユーザー数 | 自分 | 社内展開 | + 外部β | 外部公開 |

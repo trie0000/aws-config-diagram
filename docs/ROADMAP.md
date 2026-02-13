@@ -20,7 +20,94 @@
 
 ---
 
-## Phase 2: データフロー強化（次期開発）
+## Phase 1.5: Web エディタ MVP ⚡ 最優先
+
+ブラウザ上で構成図をインタラクティブに表示・編集する Web アプリケーション。
+
+> 詳細仕様: [WEB_EDITOR_SPEC.md](./design/WEB_EDITOR_SPEC.md)
+> コード開発基準: [CODING_STANDARDS.md](./design/CODING_STANDARDS.md)
+
+### 技術スタック
+
+| レイヤー | 技術 |
+|---------|------|
+| フロントエンド | React 19 + TypeScript + Vite + shadcn/ui + Tailwind CSS |
+| バックエンド | Python 3.11+ + FastAPI + uvicorn |
+| 通信 | REST API (**localhost のみ、外部通信なし**) |
+| Excel/PPTX | 既存 Python エンジンそのまま流用 |
+
+### タスク
+
+| タスク | 優先度 | 見積もり | 状態 |
+|-------|--------|---------|------|
+| `diagram_state.py`: DiagramState データモデル設計・実装 | 高 | 1日 | 未着手 |
+| `layout_engine.py`: レイアウト計算の抽出・共通化 | 高 | 1日 | 未着手 |
+| `web/app.py`: FastAPI バックエンド (localhost専用) | 高 | 1日 | 未着手 |
+| `frontend/`: Vite + React + TypeScript プロジェクトセットアップ | 高 | 0.5日 | 未着手 |
+| SVG Canvas コンポーネント（VPC/Subnet/AZ 階層 + アイコン） | 高 | 2日 | 未着手 |
+| ドラッグ&ドロップ（リソース移動、位置保存） | 高 | 1日 | 未着手 |
+| リソース詳細パネル（クリックで情報表示） | 中 | 0.5日 | 未着手 |
+| Excel/PPTX ダウンロード（既存エンジン流用） | 高 | 0.5日 | 未着手 |
+| 外部システム追加（手動ノード追加 UI） | 中 | 1日 | 未着手 |
+| コメント機能（ノードへの注釈追加） | 中 | 1日 | 未着手 |
+| `isUserModified` + JSON再インポートマージ | 中 | 1日 | 未着手 |
+
+### アーキテクチャ
+
+```
+┌──────────────────────────────────────────────────┐
+│  React Frontend (ブラウザ)                        │
+│  - SVG Canvas: ズーム / パン / ドラッグ          │
+│  - 詳細パネル: リソース情報表示                   │
+│  - ツールバー: 追加 / コメント / エクスポート     │
+│  - 状態管理: useReducer + useContext             │
+│  - Undo/Redo: クライアント側で完結               │
+└───────────────────┬──────────────────────────────┘
+                    │ REST API (localhost:8000)
+                    ▼
+┌──────────────────────────────────────────────────┐
+│  FastAPI Backend (web/app.py) ← localhost専用    │
+│  - POST /api/parse        → Config JSON パース   │
+│  - POST /api/layout       → レイアウト座標計算   │
+│  - POST /api/export/xlsx  → Excel ダウンロード   │
+│  - POST /api/export/pptx  → PPTX ダウンロード    │
+└───────────────────┬──────────────────────────────┘
+                    │
+        ┌───────────┼───────────┐
+        ▼           ▼           ▼
+  AWSConfigParser  layout_   diagram_excel.py
+  (既存・変更なし)  engine.py  diagram_pptx.py
+                  (新規)     (既存・変更なし)
+```
+
+### DiagramState データモデル（TypeScript型）
+
+```typescript
+interface DiagramState {
+  meta: DiagramMeta
+  nodes: Record<string, DiagramNode>    // Figma方式フラットマップ
+  edges: Record<string, DiagramEdge>
+  comments: Record<string, DiagramComment>
+  layers: DiagramLayer[]
+  canvas: CanvasSettings
+}
+
+interface DiagramNode {
+  id: string
+  source: 'aws-config' | 'user-manual'
+  resourceType: string
+  label: string
+  position: { x: number; y: number }
+  size: { width: number; height: number }
+  parentId: string | null
+  isUserModified: boolean
+  // ...
+}
+```
+
+---
+
+## Phase 2: データフロー強化
 
 VPC Endpointを通じたデータフローの可視化と、SG情報の詳細出力。
 
@@ -96,12 +183,13 @@ class ConfigDiff:
 
 ---
 
-## Phase 4: プロダクト化・課金対応
+## Phase 4: SaaS化・課金対応
 
 | タスク | 優先度 | 見積もり | 状態 |
 |-------|--------|---------|------|
-| Web UI（JSON投入 → 図ダウンロード） | 中 | 5日 | 未着手 |
-| pytest による自動テスト | 中 | 3日 | 未着手 |
+| リアルタイム共同編集（CRDT/WebSocket） | 中 | 5日 | 未着手 |
+| チーム共有・権限管理 | 中 | 3日 | 未着手 |
+| pytest による自動テスト（E2E） | 中 | 3日 | 未着手 |
 | PDF 出力 | 低 | 1日 | 未着手 |
 | マルチリージョン / マルチアカウント | 低 | 5日 | 未着手 |
 | Transit Gateway / Direct Connect | 低 | 3日 | 未着手 |
@@ -112,7 +200,7 @@ class ConfigDiff:
 
 ## 優先順位の考え方
 
-1. **Phase 2 VPCE矢印** → 既存機能の自然な拡張。実装コスト低い
-2. **Phase 3 差分比較** → 最大の差別化ポイント。ここが課金の核
-3. **Phase 2 SG要約表** → Phase 3 の差分比較と組み合わせると価値倍増
-4. **Phase 4** → ユーザー数が増えてから
+1. **Phase 1.5 Web エディタ** → ユーザー体験の飛躍的向上。差別化の基盤。CLIからWebへ
+2. **Phase 2 VPCE矢印** → Web エディタ上で矢印を追加表示。実装コスト低い
+3. **Phase 3 差分比較** → Web上で差分をインタラクティブ表示。課金の核
+4. **Phase 4 SaaS化** → ユーザー数が増えてから

@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 venv/
 
+# Node.js / Frontend
+frontend/node_modules/
+frontend/dist/
+
 # IDE
 .vscode/
 .idea/
@@ -18,3 +22,9 @@ icons_tmp/
 *.pptx
 *.xlsx
 ~$*
+
+# Environment
+.env
+
+# Uploads
+uploads/
