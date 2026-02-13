@@ -1,10 +1,10 @@
 # HANDOFF.md - セッション引き継ぎ
 
-> 最終更新: 2026-02-13 セッション9 (バックエンドパイプライン完成)
+> 最終更新: 2026-02-13 セッション10 (モックアップv3ライトテーマUI実装)
 
 ## 現在の状態
 
-**バックエンド API パイプライン完成**。Config JSON → DiagramState → レイアウト計算 → API レスポンスの一連が動作確認済み。Excel/PPTX エクスポートも API 経由で動作。フロントエンド API クライアントも作成済み。次は React SVG Canvas コンポーネントでの構成図描画。
+**フロントエンド UI 実装完了（モックアップ v3 Light 準拠）**。Config JSON アップロード → バックエンド API → DiagramState → SVG Canvas 描画 → リソース詳細パネル → Excel/PPTX エクスポートの一連が動作確認済み。ブラウザでの構成図表示・ノード選択・ドラッグ移動が動作する。
 
 ## 完了済み（セッション1-4: v4.2まで）
 
@@ -75,26 +75,6 @@
 - [x] `docs/ROADMAP.md` — Phase 1.5 挿入、優先順位変更
 - [x] AWSテスト環境の完全クリーンアップ確認（S3 EB バケット含む全リソース削除）
 
-## 変更ファイル（セッション6）
-
-```
-docs/design/WEB_EDITOR_SPEC.md   - Web エディタ機能要件仕様書（新規）
-docs/PRODUCT_VISION.md           - Phase 1.5 追加、モジュール構成・技術スタック更新
-docs/ROADMAP.md                  - Phase 1.5 挿入、優先順位変更
-docs/HANDOFF.md                  - 更新
-```
-
-## 変更ファイル（セッション5）
-
-```
-test/00a_setup_budget.sh〜test/99_cleanup.sh  - テストスクリプト13本
-test/env.sh, test/resource_ids.sh             - 共通設定・リソースID
-test/snapshots/snapshot.json                  - Config Snapshot
-test/snapshots/cloudfront_raw.json            - CloudFront生データ
-docs/COMPETITIVE_ANALYSIS.md                  - 競合分析（新規）
-docs/design/CONFIG_JSON_ANALYSIS.md           - Config JSON分析（新規）
-```
-
 ## 完了済み（セッション7: 技術スタック確定 + 全ドキュメント更新）
 
 ### 技術選定の経緯
@@ -107,122 +87,88 @@ docs/design/CONFIG_JSON_ANALYSIS.md           - Config JSON分析（新規）
    - Excel/PPTX出力は既存Python 4,000行をそのまま流用
    - パーサーも既存Python 2,400行をそのまま流用
 
-### ライセンス確認済み
-
-全ライブラリ MIT or BSD。商用利用に制約なし。
-React, TypeScript, Vite, shadcn/ui, FastAPI, uvicorn, Pydantic, openpyxl, python-pptx, lxml
-
-### 更新ファイル
-
-- [x] `docs/design/CODING_STANDARDS.md` — React+TS+FastAPI構成に全面書き直し
-  - TypeScript/React コーディング規約（コンポーネント設計、hooks、SVG描画）
-  - フロントエンドディレクトリ構成（components/, hooks/, types/, services/）
-  - アーキテクチャ原則（localhost通信ルール、責務分離）
-  - ライセンス一覧
-  - 起動方法（開発時: ターミナル2つ、将来: ワンコマンド）
-- [x] `CLAUDE.md` — React+TS+FastAPI構成に全面書き直し
-  - ファイル構成（frontend/ 追加、web/ をバックエンドに特化）
-  - 実行環境（Node.js, Vite, React, Tailwind 追加）
-  - アーキテクチャ図（localhost通信図）
-  - 設計原則に「localhost完結」を追加
-- [x] `docs/PRODUCT_VISION.md` — 技術スタック表・モジュール構成を更新
-  - React + TypeScript + Vite に変更
-  - 競合比較に「データ保護: ローカル完結」行を追加
-- [x] `docs/ROADMAP.md` — Phase 1.5 セクションを更新
-  - 技術スタック表を追加
-  - アーキテクチャ図を React + FastAPI 構成に更新
-  - DiagramState 型定義を TypeScript に変更
-  - タスクに「Vite プロジェクトセットアップ」を追加
-
-## 変更ファイル（セッション7）
-
-```
-docs/design/CODING_STANDARDS.md  - React+TS+FastAPI構成に全面書き直し
-CLAUDE.md                        - React+TS+FastAPI構成に全面書き直し
-docs/PRODUCT_VISION.md           - 技術スタック・モジュール構成更新
-docs/ROADMAP.md                  - Phase 1.5 技術スタック・アーキテクチャ更新
-docs/HANDOFF.md                  - 更新
-```
-
 ## 完了済み（セッション8: プロジェクトセットアップ + push）
 
 - [x] `frontend/`: Vite + React 19 + TypeScript 5.x プロジェクト作成
 - [x] Tailwind CSS v4 + shadcn/ui セットアップ
 - [x] `frontend/vite.config.ts`: @/ エイリアス、localhost:8000 プロキシ設定
 - [x] `frontend/src/types/diagram.ts`: DiagramState 型定義（ノード/エッジ/メタ）
-- [x] `frontend/src/App.tsx`: 初期シェル（ツールバー + Canvas プレースホルダー）
-- [x] ディレクトリ構成: components/{canvas,panels,toolbar}/, hooks/, types/, services/
 - [x] `web/app.py`: FastAPI スケルトン（localhost専用、CORS設定、/api/health）
-- [x] `web/routes/`: ルート分割用ディレクトリ
-- [x] venv 再作成（インタプリタパス修正）+ FastAPI/uvicorn/pydantic インストール
-- [x] `requirements.txt` 更新（fastapi, uvicorn, pydantic 追加）
-- [x] `.gitignore` 更新（frontend/node_modules/, frontend/dist/, .env, uploads/ 追加）
-- [x] git commit & push 完了（2コミット: docs + project setup）
-
-### 変更ファイル
-
-```
-.gitignore                           - frontend/node_modules等を追加
-requirements.txt                     - fastapi, uvicorn, pydantic 追加
-frontend/                            - Vite+React+TS プロジェクト（新規）
-frontend/src/types/diagram.ts        - DiagramState 型定義（新規）
-frontend/src/App.tsx                 - 初期シェル
-web/__init__.py                      - バックエンドパッケージ（新規）
-web/app.py                           - FastAPI スケルトン（新規）
-web/routes/__init__.py               - ルートパッケージ（新規）
-```
 
 ## 完了済み（セッション9: バックエンドパイプライン実装）
 
 - [x] `diagram_state.py`: Pydantic v2 モデル + DiagramStateConverter
-  - DiagramNode, DiagramEdge, DiagramMeta, DiagramState
-  - AWSConfigParser → DiagramState 変換（30+リソースタイプ対応）
-  - camelCase JSON 出力（TypeScript 互換）
-  - テスト: 66ノード、24タイプ（実データ 259リソースから生成）
 - [x] `layout_engine.py`: ピクセル座標レイアウトエンジン
-  - VPC > AZ > Subnet > Resource の4階層ネスト配置
-  - Subnet tier 別列配置（Public/Private/Isolated）
-  - VPC外サービス配置（edge/data/support 3カテゴリ）
-  - コンテンツ駆動サイズ計算
-  - テスト: 全66ノードの座標・サイズ計算成功
-- [x] `web/app.py`: FastAPI エンドポイント実装
-  - POST /api/parse: Config JSON → DiagramState（レイアウト計算済み）
-  - POST /api/export/xlsx: Excel ダウンロード
-  - POST /api/export/pptx: PowerPoint ダウンロード
-  - 全3エンドポイント curl テスト通過
+- [x] `web/app.py`: FastAPI エンドポイント実装 (parse/export)
 - [x] `frontend/src/services/api.ts`: TypeScript API クライアント
-  - parseConfigFile(), exportDiagram(), healthCheck()
-  - Blob ダウンロード対応、Content-Disposition ファイル名解析
-- [x] UI 画面設計ドキュメント
-  - `docs/design/UI_SCREEN_DESIGN.md`: 26機能、13画面、ワイヤーフレーム
-  - `docs/design/CHATGPT_UI_PROMPTS.md`: ChatGPT UI モックアップ生成プロンプト11本
+- [x] UI 画面設計ドキュメント + ChatGPT モックアッププロンプト
+
+## 完了済み（セッション10: モックアップ v3 ライトテーマ UI 実装）
+
+### UI モックアップレビュー & 適用
+
+- [x] v3 Light モックアップ画像 11枚 (`docs/design/mockups/P01〜P11`) 配置・レビュー
+- [x] `DiagramCanvas.tsx` v2.0: モックアップ v3 Light 準拠のスタイル
+  - VPC: 緑枠 + 白背景 + 緑テキストラベル
+  - AZ: グレー実線 + 薄グレー背景
+  - Subnet: tier別色枠（Public緑/Private青/Isolated紫）+ 薄色背景
+  - リソース: オレンジアウトライン矩形アイコン + テキストラベル
+  - 接続線: グレー直線/破線 + 矢印マーカー
+  - 選択: 青い点線ハイライト
+  - ズーム（ホイール）/ パン（Alt+左ドラッグ or 中ボタン）/ ドラッグ移動
+- [x] `App.tsx` v2.0: P01/P02 モックアップ準拠
+  - P01 スタート画面: 青「+」円アイコン、ネットワークSVGアイコン、ステップカード3枚、フッター
+  - P02 エディタ画面: ツールバー（ロゴ/タイトル/Undo-Redo/レイアウト）、エクスポートドロップダウン（Excel/PPTX）、閉じるボタン
+  - 詳細パネル（P04準拠）: 折りたたみセクション、AWS Config/ユーザー追加バッジ、基本情報/ネットワーク/メタデータ/配置セクション
+  - ステータスバー: Nodes/Edges数、Grid/Snap状態、Zoom表示
+- [x] `useDiagram.ts`: 状態管理hook（ファイルアップロード→API→DiagramState→ドラッグ→エクスポート→リセット）
+
+### バックエンド改善
+
+- [x] `diagram_state.py`: SG経由エッジ生成（0本→14本に改善）
+  - SecurityGroup to SecurityGroup 接続をリソース間エッジに展開
+  - `get_sg_connections()` + `build_sg_to_resources_map()` で実現
+  - ALB SG フォーマット差異対応（string list vs dict list）
+- [x] `diagram_state.py`: メタデータ強化 `_enrich_metadata()`
+  - Tags: 45/66ノード
+  - SecurityGroups: 7ノード（EC2/ALB/RDS）
+  - ARN: 59ノード
+- [x] `api.ts`: Viteプロキシ対応（API_BASE を空文字に変更）
+
+### ブラウザ動作確認
+
+- [x] ビルド成功（Vite build: 0 errors）
+- [x] スタート画面: ドロップゾーン + ステップカード表示OK
+- [x] エディタ画面: realistic_aws_config.json で 19ノード/9エッジ描画OK
+- [x] 詳細パネル: EC2リソースクリックで基本情報/メタデータ/配置情報表示OK
+- [x] エクスポートドロップダウン: Excel/PPTX選択肢表示OK
 
 ### 変更ファイル
 
 ```
-diagram_state.py                        - DiagramState Pydantic モデル + 変換器（新規）
-layout_engine.py                        - ピクセル座標レイアウトエンジン（新規）
-web/app.py                              - FastAPI エンドポイント実装（大幅更新）
-frontend/src/services/api.ts            - TypeScript API クライアント（新規）
-docs/design/UI_SCREEN_DESIGN.md         - UI 画面設計（新規）
-docs/design/CHATGPT_UI_PROMPTS.md       - ChatGPT プロンプト集（新規）
-docs/HANDOFF.md                         - 更新
+frontend/src/components/canvas/DiagramCanvas.tsx  - v3ライトテーマCanvas（新規）
+frontend/src/hooks/useDiagram.ts                  - 状態管理hook（新規）
+frontend/src/App.tsx                              - P01/P02モックアップ準拠に全面更新
+frontend/src/services/api.ts                      - Viteプロキシ対応
+diagram_state.py                                  - SG経由エッジ + メタデータ強化
+docs/design/mockups/P01〜P11 + preview            - モックアップ画像12枚（新規）
+docs/HANDOFF.md                                   - 更新
 ```
 
 ## 次のアクション
 
-1. **React SVG Canvas コンポーネント** — DiagramState を SVG で描画
-   - VPC/AZ/Subnet の階層矩形
-   - リソースアイコン（AWS 公式 SVG）
-   - ズーム・パン・選択
-2. **ドラッグ&ドロップ** — リソース移動、位置保存
-3. **リソース詳細パネル** — クリックで AWS Config メタデータ表示
-4. **Edges 実装** — get_service_connections() が 0 件を返す問題の調査
-5. **既存パーサー改修** — CONFIG_JSON_ANALYSIS.md の知見を反映
-6. **Phase 2 開発** — VPCE データフロー矢印、SG 要約マトリクス
-7. **Phase 3 開発** — 差分比較（差別化の核）
+1. **Undo/Redo 実装** — 操作履歴スタック、ツールバーボタン有効化
+2. **ノード追加UI（P06）** — 外部システム/コメントノードの手動追加
+3. **コメント機能（P07）** — ノードへのアノテーション
+4. **レイヤー管理（P08）** — Infrastructure/Security/External等の表示切替
+5. **エクスポートダイアログ（P05）** — DiagramState込みの詳細エクスポート
+6. **既存パーサー改修** — CONFIG_JSON_ANALYSIS.md の知見を反映
+7. **Phase 2 開発** — VPCE データフロー矢印、SG 要約マトリクス
+8. **Phase 3 開発** — 差分比較（差別化の核）
 
 ## 未解決の問題
 
 - CloudFrontがConfigスナップショットに含まれない（30分以上待っても検出されず）
 - ECS ServiceのNetworkConfigurationが空（VPC内配置が推論不能）
+- Undo/Redo ツールバーボタンはUI配置済みだが機能未実装（disabled状態）
+- レイアウトツールボタンはUI配置済みだが機能未実装（disabled状態）
