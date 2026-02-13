@@ -31,11 +31,50 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+## AWS Config の推奨設定
+
+本ツールで正確な構成図を生成するには、以下の設定でConfigスナップショットを取得してください。
+
+### Config Recorder の設定
+
+- **記録対象**: 「このリージョンでサポートされているすべてのリソースを記録する」を **ON**
+- **グローバルリソース**: 「グローバルリソース（IAMリソースなど）を含める」を **ON**
+- **IAMロール**: AWS管理ポリシー **`AWS_ConfigRole`** を付与
+  - `arn:aws:iam::aws:policy/service-role/AWS_ConfigRole`
+  - カスタムポリシーで権限を絞ると、一部リソースの設定情報が取得できません
+
+> **注意**: 「特定リソースのみ記録」にすると、SubnetやRoute Tableが記録対象から漏れ、構成図に必要な情報が欠落します。
+
+### スナップショット取得ユーザーの権限
+
+S3からスナップショットをダウンロードするユーザーには以下の権限が必要です:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "config:DeliverConfigSnapshot",
+        "s3:GetObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:config:*:*:*",
+        "arn:aws:s3:::<Config配信先バケット名>",
+        "arn:aws:s3:::<Config配信先バケット名>/*"
+      ]
+    }
+  ]
+}
+```
+
 ## AWS Config スナップショットの取得方法
 
 ### 前提条件
 
-- AWS Config が有効化されていること
+- 上記「AWS Config の推奨設定」が完了していること
 - Config の配信チャネル（S3バケット）が設定されていること
 
 ### 方法1: AWS マネジメントコンソール（ブラウザ）から取得
