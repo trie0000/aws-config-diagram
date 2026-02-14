@@ -190,109 +190,126 @@ export function reduceCrossings(
 // Port Spreading
 // ============================================================
 
-/** ポート間のオフセット（px） */
-const PORT_SPREAD = 8
-
-/** ポート分散の最大範囲をアイコン辺の中央何%に制限するか（0.0〜1.0） */
-const PORT_MAX_RATIO = 0.5
+/**
+ * ポート分散の使用範囲: アイコン辺の中央何%を使うか（0.0〜1.0）
+ * 0.6 = 辺の中央60%を使用（両端20%ずつは余白）
+ */
+const PORT_RANGE_RATIO = 0.6
 
 /**
- * 同じノードの同じ辺に接続する複数エッジの接続点を辺に沿って等間隔に分散。
- * src/dst を区別せず、同じ接続点座標のエッジを1グループとして扱う。
- * 分散範囲はアイコン辺の中央 PORT_MAX_RATIO に制限し、端は使わない。
+ * 同じノードの同じ辺に接続する複数エッジの接続点を辺に沿って均等分散。
+ *
+ * グルーピング: ノードID + 辺（srcSide/dstSide）
+ * 配置ルール: 辺の中央 PORT_RANGE_RATIO の範囲を N+1 等分した位置に配置
+ *   - 1本: 中央
+ *   - 2本: 中央から均等に ±offset
+ *   - 3本: 中央 + ±offset
+ *
+ * enforceEdgeRules の後に呼ぶこと（辺座標が確定した後に分散する）。
  */
-export function spreadPorts(routed: RoutedEdge[], nodes?: Record<string, DiagramNode>): void {
+export function spreadPorts(routed: RoutedEdge[], nodes: Record<string, DiagramNode>): void {
   if (routed.length < 2) return
 
   interface PortEntry {
     edgeIdx: number
     end: 'src' | 'dst'
     side: Side
+    /** ソート用: 相手ノードの座標（辺に沿った方向） */
     targetCoord: number
-    nodeId: string
   }
 
+  // ノードID + 辺 でグルーピング
   const portGroups = new Map<string, PortEntry[]>()
 
   for (let ei = 0; ei < routed.length; ei++) {
     const r = routed[ei]
     if (r.waypoints.length < 2) continue
 
-    const srcPt = r.waypoints[0]
     const dstPt = r.waypoints[r.waypoints.length - 1]
+    const srcPt = r.waypoints[0]
 
-    const srcGroupKey = `port:${Math.round(srcPt.x)}:${Math.round(srcPt.y)}`
-    if (!portGroups.has(srcGroupKey)) portGroups.set(srcGroupKey, [])
-    portGroups.get(srcGroupKey)!.push({
+    // src 側
+    const srcKey = `${r.sourceNodeId}:${r.srcSide}`
+    if (!portGroups.has(srcKey)) portGroups.set(srcKey, [])
+    portGroups.get(srcKey)!.push({
       edgeIdx: ei,
       end: 'src',
       side: r.srcSide,
       targetCoord: (r.srcSide === 'left' || r.srcSide === 'right') ? dstPt.y : dstPt.x,
-      nodeId: r.sourceNodeId,
     })
 
-    const dstGroupKey = `port:${Math.round(dstPt.x)}:${Math.round(dstPt.y)}`
-    if (!portGroups.has(dstGroupKey)) portGroups.set(dstGroupKey, [])
-    portGroups.get(dstGroupKey)!.push({
+    // dst 側
+    const dstKey = `${r.targetNodeId}:${r.dstSide}`
+    if (!portGroups.has(dstKey)) portGroups.set(dstKey, [])
+    portGroups.get(dstKey)!.push({
       edgeIdx: ei,
       end: 'dst',
       side: r.dstSide,
       targetCoord: (r.dstSide === 'left' || r.dstSide === 'right') ? srcPt.y : srcPt.x,
-      nodeId: r.targetNodeId,
     })
   }
 
-  for (const [, entries] of portGroups) {
+  for (const [groupKey, entries] of portGroups) {
     if (entries.length < 2) continue
 
+    // ターゲット座標でソート（辺に沿った順番）
     entries.sort((a, b) => a.targetCoord - b.targetCoord)
 
-    // ノード情報からオフセット上限を計算（辺の中央 PORT_MAX_RATIO 以内）
-    let maxOffset = Infinity
-    if (nodes) {
-      const firstEntry = entries[0]
-      const node = nodes[firstEntry.nodeId]
-      if (node && !CONTAINER_TYPES.has(node.type)) {
-        const rect = nodeIconRect(node)
-        const isHoriz = (firstEntry.side === 'left' || firstEntry.side === 'right')
-        const edgeLen = isHoriz ? rect.h : rect.w
-        maxOffset = (edgeLen * PORT_MAX_RATIO) / 2
-      }
-    }
+    // ノード情報から辺の長さを取得
+    // groupKey = "nodeId:side" — nodeId に ':' を含む場合があるので最後の ':' で分割
+    const lastColon = groupKey.lastIndexOf(':')
+    const nodeId = groupKey.substring(0, lastColon)
+    const node = nodes[nodeId]
+    if (!node) continue
 
+    const rect = nodeIconRect(node)
+    const side = entries[0].side
+    const isHoriz = (side === 'left' || side === 'right')
+    const edgeLen = isHoriz ? rect.h : rect.w
+
+    // 辺の中心座標（絶対値）
+    const centerCoord = isHoriz
+      ? rect.y + rect.h / 2   // left/right: y中心
+      : rect.x + rect.w / 2   // top/bottom: x中心
+
+    // 使用範囲: 辺の中央 PORT_RANGE_RATIO
+    const usableRange = edgeLen * PORT_RANGE_RATIO
     const count = entries.length
+
     for (let rank = 0; rank < count; rank++) {
-      let offset = (rank - (count - 1) / 2) * PORT_SPREAD
-      // アイコン辺の中央範囲にクランプ
-      offset = Math.max(-maxOffset, Math.min(maxOffset, offset))
+      // N本を均等配置: center ± usableRange/2
+      const offset = count === 1 ? 0 : (rank / (count - 1) - 0.5) * usableRange
+      const absPos = centerCoord + offset
       const entry = entries[rank]
       const r = routed[entry.edgeIdx]
       const wp = r.waypoints
 
       if (entry.end === 'src') {
         const pt = wp[0]
-        if (entry.side === 'left' || entry.side === 'right') {
-          pt.y += offset
-          if (wp.length >= 2 && Math.abs(wp[1].y - (pt.y - offset)) < 1) {
-            wp[1].y += offset
+        const oldVal = isHoriz ? pt.y : pt.x
+        if (isHoriz) {
+          pt.y = absPos
+          if (wp.length >= 2 && Math.abs(wp[1].y - oldVal) < 1) {
+            wp[1].y = absPos
           }
         } else {
-          pt.x += offset
-          if (wp.length >= 2 && Math.abs(wp[1].x - (pt.x - offset)) < 1) {
-            wp[1].x += offset
+          pt.x = absPos
+          if (wp.length >= 2 && Math.abs(wp[1].x - oldVal) < 1) {
+            wp[1].x = absPos
           }
         }
       } else {
         const pt = wp[wp.length - 1]
-        if (entry.side === 'left' || entry.side === 'right') {
-          pt.y += offset
-          if (wp.length >= 2 && Math.abs(wp[wp.length - 2].y - (pt.y - offset)) < 1) {
-            wp[wp.length - 2].y += offset
+        const oldVal = isHoriz ? pt.y : pt.x
+        if (isHoriz) {
+          pt.y = absPos
+          if (wp.length >= 2 && Math.abs(wp[wp.length - 2].y - oldVal) < 1) {
+            wp[wp.length - 2].y = absPos
           }
         } else {
-          pt.x += offset
-          if (wp.length >= 2 && Math.abs(wp[wp.length - 2].x - (pt.x - offset)) < 1) {
-            wp[wp.length - 2].x += offset
+          pt.x = absPos
+          if (wp.length >= 2 && Math.abs(wp[wp.length - 2].x - oldVal) < 1) {
+            wp[wp.length - 2].x = absPos
           }
         }
       }

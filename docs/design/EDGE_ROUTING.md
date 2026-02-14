@@ -46,7 +46,7 @@
    └──────┘
 ```
 
-`spreadPorts`（edgeRouter.postprocess.ts）が同じ辺中央座標に集中するエッジを辺方向に等間隔（PORT_SPREAD=12px）にオフセットする。src/dst を区別せず、同じ座標のエッジを1グループとして処理する。
+`spreadPorts`（edgeRouter.postprocess.ts）が同じノード・同じ辺に接続するエッジを辺に沿って均等に分散する。グルーピングは `nodeId:side` で行い、アイコン辺の中央60%（`PORT_RANGE_RATIO=0.6`）を使用範囲として等間隔に配置する。座標は辺の中心から絶対値で設定される。
 
 ### 到着方向のルール
 
@@ -109,30 +109,23 @@ dst の場合: グリッドが右に行く(dx>0) → dstSide='left'（右から�
   → 最小距離 = left (50) ✅
 ```
 
-### 2. 後処理パイプライン（edgeRouter.postprocess.ts）
+### 2. 後処理パイプライン
 
 ```
-reduceCrossings → spreadPorts → nudgeEdges
+reduceCrossings → nudgeEdges → enforceEdgeRules → spreadPorts
 ```
 
-#### reduceCrossings
+#### reduceCrossings（edgeRouter.postprocess.ts）
 交差に関与するエッジを交差ペナルティ付き BFS で再ルーティング。交差数が減る場合のみ採用。
 
 **注意**: 再ルーティング時もコンテナノードは `directionToTarget()` で辺を決定する。
 
-#### spreadPorts
-同じ座標に接続する複数エッジを辺に沿って等間隔にオフセット（PORT_SPREAD=12px）。
-
-**副作用**: 始点/終点の座標がオフセットされるため、辺中央からずれる。これにより始点が意図しない辺付近に移動することがある。
-
-#### nudgeEdges
+#### nudgeEdges（edgeRouter.postprocess.ts）
 同一線上を通る複数エッジのセグメントを等間隔にオフセット（NUDGE_STEP=10px）。
-
-**副作用**: セグメント自体が平行移動するため、直交性が崩れる場合がある。
 
 ### 3. enforceEdgeRules（edgeRouter.ts）
 
-全後処理（reduceCrossings → spreadPorts → nudgeEdges）の完了後に、全エッジに対して3ルールを最終適用する。
+nudgeEdges の完了後に、全エッジに対して3ルールを最終適用する。
 
 #### 前処理: removeDuplicateWaypoints
 連続する重複ウェイポイント（距離1px以内）を除去する。`simplifyPath` が始点/終点に同一座標を生成する場合がある。
@@ -164,7 +157,29 @@ reduceCrossings → spreadPorts → nudgeEdges
 1. `directionToTarget()` で到着辺を決定
 2. L 字パスに再構築: `[始点, 中継点, 到着点]`
 
-### 4. 描画（EdgeLine.tsx）
+### 4. spreadPorts（edgeRouter.postprocess.ts）
+
+enforceEdgeRules で辺座標が確定した後に、同じノード・同じ辺に接続する複数エッジの接続点を均等に分散する。
+
+**グルーピング**: `nodeId:side`（例: `node-i-xxx:bottom`）。nodeId に `:` を含むケース（AWS ARN）があるため、最後の `:` で分割する。
+
+**配置ルール**:
+```
+PORT_RANGE_RATIO = 0.6（辺の中央60%を使用）
+usableRange = iconEdgeLength × PORT_RANGE_RATIO
+offset[rank] = (rank / (count - 1) - 0.5) × usableRange
+absPos = edgeCenter + offset
+```
+
+- 1本: 辺の中央
+- 2本: 中央から ±usableRange/2（例: EC2 w=41.6 → ±12.48px）
+- 3本: 中央 + ±usableRange/2
+
+座標は絶対値で設定（相対オフセットではない）。隣接するウェイポイントが同一座標だった場合は連動して移動させる。
+
+**ソート**: ターゲットノードの座標（辺に沿った方向）で昇順ソートし、交差を防ぐ。
+
+### 5. 描画（EdgeLine.tsx）
 
 EdgeLine.tsx は描画のみ担当。ルール適用は一切行わない。`routedEdge.waypoints` をそのまま `pointsToPath` で SVG パスに変換する。
 
@@ -196,7 +211,7 @@ EdgeLine.tsx は描画のみ担当。ルール適用は一切行わない。`rou
 ## 既知の問題と制約
 
 ### spreadPorts による辺ずれ
-同じ辺に複数エッジが接続する場合、辺に沿って分散するため始点/終点が辺中央からオフセットされる。`enforceEdgeRules` の `enforceStart`/`enforceEnd` が辺面の座標を修正しつつ、分散オフセットは保持する。
+同じ辺に複数エッジが接続する場合、辺に沿って分散するため始点/終点が辺中央からオフセットされる。`PORT_RANGE_RATIO=0.6` により辺の両端20%は余白として確保されるため、アイコン端に線が接続することはない。
 
 ### simplifyPath による重複ウェイポイント
 `simplifyPath` がグリッドパスを折れ点に簡略化する際、始点/終点が同一座標になることがある。`removeDuplicateWaypoints` で除去し、`enforceStart`/`enforceEnd` は次の異なる点を探して方向を判定する。
