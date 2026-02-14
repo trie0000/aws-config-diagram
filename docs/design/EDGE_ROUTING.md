@@ -59,6 +59,33 @@
 | left   | →（右向き）      | 左から到着 |
 | right  | ←（左向き）      | 右から到着 |
 
+### アイコン貫通禁止ルール
+
+**エッジの線は、自分の始点/終点ノード以外のアイコンの上を通ってはならない。**
+
+```
+✅ 正しい: アイコンの外側を迂回する
+   ┌───┐
+   │ A │
+   └───┘
+ │         ← アイコンの左外を通る
+ │  ┌───┐
+ │  │ B │  ← B のアイコンの上は通らない
+ │  └───┘
+ │
+ └──→ C
+
+❌ 間違い: 第三者のアイコンの上を線が通る
+   ┌───┐
+   │ A │
+   └───┘
+   │  ┌───┐
+   │──│ B │──  ← B のアイコンに線が重なっている
+      └───┘
+```
+
+`deflectFromIcons`（edgeRouter.postprocess.ts）が全エッジの全セグメントをチェックし、第三者ノードのアイコン矩形を貫通（または境界から2px以内を通過）するセグメントを検出して、アイコンの外側8pxを迂回するウェイポイントを挿入する。自分のsrc/dstノードは除外する。
+
 
 ## ノード種別
 
@@ -112,7 +139,7 @@ dst の場合: グリッドが右に行く(dx>0) → dstSide='left'（右から�
 ### 2. 後処理パイプライン
 
 ```
-reduceCrossings → nudgeEdges → enforceEdgeRules → spreadPorts
+reduceCrossings → nudgeEdges → enforceEdgeRules → spreadPorts → deflectFromIcons
 ```
 
 #### reduceCrossings（edgeRouter.postprocess.ts）
@@ -179,11 +206,23 @@ absPos = edgeCenter + offset
 - 2本: 中央から ±usableRange/2（例: EC2 w=41.6 → ±12.48px）
 - 3本: 中央 + ±usableRange/2
 
-座標は絶対値で設定（相対オフセットではない）。隣接するウェイポイントが同一座標だった場合は連動して移動させる。
+座標は絶対値で設定（相対オフセットではない）。端点だけを移動し、隣接WPは動かさず中継WPを挿入して直交性を維持する（BFSの障害物回避経路を破壊しない）。
 
 **ソート**: ターゲットノードの座標（辺に沿った方向）で昇順ソートし、交差を防ぐ。
 
-### 5. 描画（EdgeLine.tsx）
+### 5. アイコン貫通防止（edgeRouter.postprocess.ts: deflectFromIcons）
+
+spreadPorts の後に実行。全エッジの全セグメントを走査し、第三者ノード（src/dst以外）のアイコン矩形との交差を検出する。
+
+**検出**: `segmentIntersectsRect` にバッファ2pxを設定し、アイコン境界ぴったりの線も検出する。
+
+**迂回**: 貫通セグメントを検出した場合、アイコンの外側 MARGIN=8px を通る4つの中継ウェイポイントを挿入してコの字に迂回する。
+- 垂直セグメント: アイコンの左右どちらか近い方に迂回
+- 水平セグメント: アイコンの上下どちらか近い方に迂回
+
+**再帰チェック**: 挿入した迂回セグメント自体が別のアイコンを貫通する可能性があるため、同じインデックスで再チェックする（maxIter=200で無限ループ防止）。
+
+### 6. 描画（EdgeLine.tsx）
 
 EdgeLine.tsx は描画のみ担当。ルール適用は一切行わない。`routedEdge.waypoints` をそのまま `pointsToPath` で SVG パスに変換する。
 
@@ -236,7 +275,7 @@ GRID_SIZE=20px のため、アイコン矩形の正確な辺座標とグリッ�
 |---------|------|
 | `edgeRouter.types.ts` | 型定義、定数、共有ユーティリティ（nodeIconRect, sideCenter, bestSides, directionToTarget, pointsToPath） |
 | `edgeRouter.bfs.ts` | グリッド構築、BFS 探索、determineSide、simplifyPath、fallbackRoute |
-| `edgeRouter.postprocess.ts` | reduceCrossings, spreadPorts, nudgeEdges |
+| `edgeRouter.postprocess.ts` | reduceCrossings, spreadPorts, nudgeEdges, deflectFromIcons |
 | `edgeRouter.ts` | オーケストレータ（routeAllEdges）、enforceEdgeRules、re-export |
 | `EdgeLine.tsx` | 描画コンポーネント（描画のみ、ルール適用なし） |
 | `DiagramCanvas.tsx` | SVG defs（矢印マーカー定義）、全体描画 |

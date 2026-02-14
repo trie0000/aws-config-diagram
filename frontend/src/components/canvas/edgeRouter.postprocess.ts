@@ -288,35 +288,193 @@ export function spreadPorts(routed: RoutedEdge[], nodes: Record<string, DiagramN
       const r = routed[entry.edgeIdx]
       const wp = r.waypoints
 
+      // 端点だけ移動する。隣接WPは動かさず、直交性維持のため中継WPを挿入する。
+      // これにより、BFSが障害物回避で決めた中間経路を破壊しない。
+      //
+      // 中継WP挿入条件:
+      //   1. 移動量がある（absPos と現在値の差 > 0.5）
+      //   2. 隣接WPが端点と同軸（移動する軸の座標が同じ）
+      //      - isHoriz (left/right): yを移動 → 隣接WPとxが同じ（垂直セグメント）場合に中継
+      //      - !isHoriz (top/bottom): xを移動 → 隣接WPとxが同じ（垂直セグメント）場合に中継
       if (entry.end === 'src') {
         const pt = wp[0]
-        const oldVal = isHoriz ? pt.y : pt.x
+        const adj = wp[1]
         if (isHoriz) {
+          // left/right辺: yを移動。隣接WPとxが同じ（水平→垂直の直線）なら中継挿入
+          const sameAxis = Math.abs(adj.x - pt.x) < 1
+          if (Math.abs(pt.y - absPos) > 0.5 && wp.length >= 2 && sameAxis) {
+            wp.splice(1, 0, { x: pt.x, y: adj.y })
+          }
           pt.y = absPos
-          if (wp.length >= 2 && Math.abs(wp[1].y - oldVal) < 1) {
-            wp[1].y = absPos
-          }
         } else {
-          pt.x = absPos
-          if (wp.length >= 2 && Math.abs(wp[1].x - oldVal) < 1) {
-            wp[1].x = absPos
+          // top/bottom辺: xを移動。隣接WPとxが同じ（垂直の直線）なら中継挿入
+          const sameAxis = Math.abs(adj.x - pt.x) < 1
+          if (Math.abs(pt.x - absPos) > 0.5 && wp.length >= 2 && sameAxis) {
+            wp.splice(1, 0, { x: adj.x, y: pt.y })
           }
+          pt.x = absPos
         }
       } else {
-        const pt = wp[wp.length - 1]
-        const oldVal = isHoriz ? pt.y : pt.x
+        const lastIdx = wp.length - 1
+        const pt = wp[lastIdx]
+        const adj = wp[lastIdx - 1]
         if (isHoriz) {
-          pt.y = absPos
-          if (wp.length >= 2 && Math.abs(wp[wp.length - 2].y - oldVal) < 1) {
-            wp[wp.length - 2].y = absPos
+          // left/right辺: yを移動
+          const sameAxis = Math.abs(adj.x - pt.x) < 1
+          if (Math.abs(pt.y - absPos) > 0.5 && wp.length >= 2 && sameAxis) {
+            wp.splice(lastIdx, 0, { x: pt.x, y: adj.y })
           }
+          wp[wp.length - 1].y = absPos
         } else {
-          pt.x = absPos
-          if (wp.length >= 2 && Math.abs(wp[wp.length - 2].x - oldVal) < 1) {
-            wp[wp.length - 2].x = absPos
+          // top/bottom辺: xを移動。隣接WPとxが同じなら中継挿入
+          const sameAxis = Math.abs(adj.x - pt.x) < 1
+          if (Math.abs(pt.x - absPos) > 0.5 && wp.length >= 2 && sameAxis) {
+            wp.splice(lastIdx, 0, { x: adj.x, y: pt.y })
           }
+          wp[wp.length - 1].x = absPos
         }
       }
+    }
+  }
+}
+
+// ============================================================
+// Icon Deflection — アイコン貫通防止
+// ============================================================
+
+/**
+ * 線分 (ax,ay)→(bx,by) が矩形 r（+ buffer マージン）と交差するか判定。
+ * buffer を指定すると矩形を各辺 buffer px 拡張して判定する。
+ * これにより、アイコン境界ぴったりを通る線もヒットとして検出できる。
+ */
+function segmentIntersectsRect(
+  ax: number, ay: number, bx: number, by: number,
+  r: { x: number; y: number; w: number; h: number },
+  buffer = 0,
+): boolean {
+  const rx1 = r.x - buffer
+  const ry1 = r.y - buffer
+  const rx2 = r.x + r.w + buffer
+  const ry2 = r.y + r.h + buffer
+  // 水平セグメント
+  if (Math.abs(ay - by) < 1) {
+    const y = ay
+    if (y <= ry1 || y >= ry2) return false
+    const minX = Math.min(ax, bx)
+    const maxX = Math.max(ax, bx)
+    return maxX > rx1 && minX < rx2
+  }
+  // 垂直セグメント
+  if (Math.abs(ax - bx) < 1) {
+    const x = ax
+    if (x <= rx1 || x >= rx2) return false
+    const minY = Math.min(ay, by)
+    const maxY = Math.max(ay, by)
+    return maxY > ry1 && minY < ry2
+  }
+  return false
+}
+
+/**
+ * 全エッジの全セグメントをチェックし、第三者のアイコン矩形を貫通する
+ * セグメントがあれば、アイコンの外側を迂回するウェイポイントを挿入する。
+ *
+ * spreadPorts の後に呼ぶこと。
+ */
+export function deflectFromIcons(
+  routed: RoutedEdge[],
+  nodes: Record<string, DiagramNode>,
+): void {
+  // 全アイコンノードの矩形を収集
+  const iconRects: Array<{ nodeId: string; rect: { x: number; y: number; w: number; h: number } }> = []
+  for (const [id, n] of Object.entries(nodes)) {
+    if (CONTAINER_TYPES.has(n.type)) continue
+    iconRects.push({ nodeId: id, rect: nodeIconRect(n) })
+  }
+
+  const MARGIN = 8   // 迂回マージン (px)
+  const DETECT = 2    // 検出バッファ (px) — アイコン境界ぴったりも検出する
+
+  for (const r of routed) {
+    const wp = r.waypoints
+    if (wp.length < 2) continue
+
+    // エッジの始点/終点ノードは除外（自分自身のアイコンは貫通して当然）
+    const skipNodes = new Set<string>()
+    if (r.sourceNodeId) skipNodes.add(r.sourceNodeId)
+    if (r.targetNodeId) skipNodes.add(r.targetNodeId)
+
+    // セグメントを前から走査（spliceでインデックスが変わるため毎回ループ）
+    let si = 0
+    let maxIter = 200 // 無限ループ防止
+    while (si < wp.length - 1 && maxIter-- > 0) {
+      const a = wp[si]
+      const b = wp[si + 1]
+
+      let deflected = false
+      for (const { nodeId, rect } of iconRects) {
+        if (skipNodes.has(nodeId)) continue
+        if (!segmentIntersectsRect(a.x, a.y, b.x, b.y, rect, DETECT)) continue
+
+        // 垂直セグメントがアイコンを貫通 → 左右に迂回
+        if (Math.abs(a.x - b.x) < 1) {
+          const cx = rect.x + rect.w / 2
+          // セグメントがアイコンの左半分を通るなら左に、右なら右に迂回
+          const goLeft = a.x <= cx
+          const detourX = goLeft ? rect.x - MARGIN : rect.x + rect.w + MARGIN
+          const topY = rect.y - MARGIN
+          const botY = rect.y + rect.h + MARGIN
+          // aがrectの上にいるか下にいるかで迂回方向を決定
+          if (a.y < rect.y) {
+            // 上から下へ通過: aの下でrectの上端を回る
+            wp.splice(si + 1, 0,
+              { x: a.x, y: topY },
+              { x: detourX, y: topY },
+              { x: detourX, y: botY },
+              { x: b.x, y: botY },
+            )
+          } else {
+            // 下から上へ通過
+            wp.splice(si + 1, 0,
+              { x: a.x, y: botY },
+              { x: detourX, y: botY },
+              { x: detourX, y: topY },
+              { x: b.x, y: topY },
+            )
+          }
+          deflected = true
+          break
+        }
+
+        // 水平セグメントがアイコンを貫通 → 上下に迂回
+        if (Math.abs(a.y - b.y) < 1) {
+          const cy = rect.y + rect.h / 2
+          const goUp = a.y <= cy
+          const detourY = goUp ? rect.y - MARGIN : rect.y + rect.h + MARGIN
+          const leftX = rect.x - MARGIN
+          const rightX = rect.x + rect.w + MARGIN
+          if (a.x < rect.x) {
+            wp.splice(si + 1, 0,
+              { x: leftX, y: a.y },
+              { x: leftX, y: detourY },
+              { x: rightX, y: detourY },
+              { x: rightX, y: b.y },
+            )
+          } else {
+            wp.splice(si + 1, 0,
+              { x: rightX, y: a.y },
+              { x: rightX, y: detourY },
+              { x: leftX, y: detourY },
+              { x: leftX, y: b.y },
+            )
+          }
+          deflected = true
+          break
+        }
+      }
+
+      // deflectedした場合は同じsiで再チェック（新しいセグメントも貫通する可能性）
+      if (!deflected) si++
     }
   }
 }
