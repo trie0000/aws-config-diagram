@@ -7,7 +7,9 @@
 
 import type { MouseEvent } from 'react'
 import type { DiagramNode, DiagramEdge } from '../../types/diagram'
-import { bestSides, sideCenter, pointsToPath, type RoutedEdge } from './edgeRouter'
+import { bestSides, sideCenter, nodeIconRect, directionToTarget, pointsToPath, type RoutedEdge } from './edgeRouter'
+
+const CONTAINER_TYPES = new Set(['aws-cloud', 'vpc', 'az', 'subnet'])
 
 export function EdgeLine({
   edge, nodes, highlighted, onEdgeClick, routedEdge,
@@ -25,7 +27,30 @@ export function EdgeLine({
   // 事前計算済みルートを使用（なければフォールバック）
   let waypoints: Array<{ x: number; y: number }>
   if (routedEdge && routedEdge.waypoints.length >= 2) {
-    waypoints = routedEdge.waypoints
+    waypoints = [...routedEdge.waypoints.map(p => ({ ...p }))]
+    // コンテナノードの始点/終点を辺方向に強制修正
+    // BFS後処理が中間ルートを変えるため、始点/終点のパスを再構築する
+    const srcIsContainer = CONTAINER_TYPES.has(src.type)
+    const dstIsContainer = CONTAINER_TYPES.has(dst.type)
+    if (srcIsContainer || dstIsContainer) {
+      const srcRect = nodeIconRect(src)
+      const dstRect = nodeIconRect(dst)
+      const dstCenter = { x: dstRect.x + dstRect.w / 2, y: dstRect.y + dstRect.h / 2 }
+      if (srcIsContainer) {
+        const correctSide = directionToTarget(srcRect, dstRect)
+        const p1 = sideCenter(src, correctSide)
+        // 始点から辺方向に直進 → 最終点に向かう直交ルート
+        const isHoriz = (correctSide === 'left' || correctSide === 'right')
+        const lastPt = waypoints[waypoints.length - 1]
+        if (isHoriz) {
+          // 水平出発 → 終点のXまで水平 → 終点まで垂直
+          waypoints = [p1, { x: lastPt.x, y: p1.y }, lastPt]
+        } else {
+          // 垂直出発 → 終点のYまで垂直 → 終点まで水平
+          waypoints = [p1, { x: p1.x, y: lastPt.y }, lastPt]
+        }
+      }
+    }
   } else {
     const sides = bestSides(src, dst)
     const p1 = sideCenter(src, sides.srcSide)

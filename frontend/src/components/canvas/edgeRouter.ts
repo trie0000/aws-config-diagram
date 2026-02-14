@@ -21,7 +21,7 @@
 
 import type { DiagramNode, DiagramEdge } from '../../types/diagram'
 import type { RoutedEdge } from './edgeRouter.types'
-import { CONTAINER_TYPES, nodeIconRect, sideCenter, bestSides } from './edgeRouter.types'
+import { CONTAINER_TYPES, nodeIconRect, sideCenter, bestSides, directionToTarget, type Side } from './edgeRouter.types'
 import {
   buildObstacleGrid, unblockRect, reblockCells,
   bfsSearch, determineSide, simplifyPath, fallbackRoute,
@@ -29,7 +29,7 @@ import {
 import { reduceCrossings, spreadPorts, nudgeEdges } from './edgeRouter.postprocess'
 
 // Re-export public API for consumers
-export { nodeIconRect, sideCenter, bestSides, pointsToPath } from './edgeRouter.types'
+export { nodeIconRect, sideCenter, bestSides, directionToTarget, pointsToPath } from './edgeRouter.types'
 export type { RoutedEdge, Side } from './edgeRouter.types'
 
 /**
@@ -73,11 +73,20 @@ export function routeAllEdges(
       const result = bfsSearch(srcCx, srcCy, dstCx, dstCy, grid)
 
       if (result) {
-        const srcSide = determineSide(result.gridPath, 'src')
-        const dstSide = determineSide(result.gridPath, 'dst')
+        // コンテナノードは BFS グリッド方向が不安定なので相手ノードの方向で辺を決定
+        const srcIsContainer = CONTAINER_TYPES.has(src.type)
+        const dstIsContainer = CONTAINER_TYPES.has(dst.type)
+        let srcSide: Side, dstSide: Side
+        if (srcIsContainer || dstIsContainer) {
+          srcSide = srcIsContainer ? directionToTarget(srcRect, dstRect) : determineSide(result.gridPath, 'src')
+          dstSide = dstIsContainer ? directionToTarget(dstRect, srcRect) : determineSide(result.gridPath, 'dst')
+        } else {
+          srcSide = determineSide(result.gridPath, 'src')
+          dstSide = determineSide(result.gridPath, 'dst')
+        }
         const p1 = sideCenter(src, srcSide)
         const p2 = sideCenter(dst, dstSide)
-        const waypoints = simplifyPath(result.gridPath, p1, p2)
+        const waypoints = simplifyPath(result.gridPath, p1, p2, srcSide, dstSide)
         routed.push({ edgeId: edge.id, waypoints, srcSide, dstSide, sourceNodeId: edge.sourceNodeId, targetNodeId: edge.targetNodeId })
       } else {
         const { srcSide, dstSide } = bestSides(src, dst)
@@ -95,6 +104,51 @@ export function routeAllEdges(
   reduceCrossings(routed, nodes, grid)
   spreadPorts(routed)
   nudgeEdges(routed)
+
+  // コンテナエッジの始点/終点を directionToTarget で強制修正
+  // （後処理が BFS 方向で上書きする可能性があるため、最後に再適用）
+  for (const r of routed) {
+    if (r.waypoints.length < 2 || !r.sourceNodeId || !r.targetNodeId) continue
+    const src = nodes[r.sourceNodeId]
+    const dst = nodes[r.targetNodeId]
+    if (!src || !dst) continue
+
+    const srcIsContainer = CONTAINER_TYPES.has(src.type)
+    const dstIsContainer = CONTAINER_TYPES.has(dst.type)
+    if (!srcIsContainer && !dstIsContainer) continue
+
+    const srcRect = nodeIconRect(src)
+    const dstRect = nodeIconRect(dst)
+
+    if (srcIsContainer && r.waypoints.length >= 2) {
+      const correctSide = directionToTarget(srcRect, dstRect)
+      r.srcSide = correctSide
+      const newP1 = sideCenter(src, correctSide)
+      r.waypoints[0] = newP1
+      // 2番目のwaypointを辺方向に揃える（始点→次の点が辺方向に直進するようにする）
+      const isHoriz = (correctSide === 'left' || correctSide === 'right')
+      if (isHoriz) {
+        r.waypoints[1] = { x: r.waypoints[1].x, y: newP1.y }
+      } else {
+        r.waypoints[1] = { x: newP1.x, y: r.waypoints[1].y }
+      }
+    }
+
+    if (dstIsContainer && r.waypoints.length >= 2) {
+      const correctSide = directionToTarget(dstRect, srcRect)
+      r.dstSide = correctSide
+      const newP2 = sideCenter(dst, correctSide)
+      const last = r.waypoints.length - 1
+      r.waypoints[last] = newP2
+      // 最後の1つ前のwaypointを辺方向に揃える
+      const isHoriz = (correctSide === 'left' || correctSide === 'right')
+      if (isHoriz) {
+        r.waypoints[last - 1] = { x: r.waypoints[last - 1].x, y: newP2.y }
+      } else {
+        r.waypoints[last - 1] = { x: newP2.x, y: r.waypoints[last - 1].y }
+      }
+    }
+  }
 
   return routed
 }

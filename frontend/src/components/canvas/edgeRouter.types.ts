@@ -125,6 +125,43 @@ export function bestSides(src: DiagramNode, dst: DiagramNode): { srcSide: Side; 
 }
 
 
+/**
+ * コンテナノード用: ソース矩形からターゲット矩形への最適な出口辺を返す。
+ * ターゲット中心がソース矩形の外にある方向のうち、最も近い辺を選択。
+ */
+export function directionToTarget(
+  srcRect: { x: number; y: number; w: number; h: number },
+  dstRect: { x: number; y: number; w: number; h: number },
+): Side {
+  const dstCx = dstRect.x + dstRect.w / 2
+  const dstCy = dstRect.y + dstRect.h / 2
+
+  const distLeft = dstCx - srcRect.x
+  const distRight = dstCx - (srcRect.x + srcRect.w)
+  const distTop = dstCy - srcRect.y
+  const distBottom = dstCy - (srcRect.y + srcRect.h)
+
+  const candidates: Array<{ side: Side; dist: number }> = []
+  if (distLeft < 0)   candidates.push({ side: 'left',   dist: Math.abs(distLeft) })
+  if (distRight > 0)  candidates.push({ side: 'right',  dist: Math.abs(distRight) })
+  if (distTop < 0)    candidates.push({ side: 'top',    dist: Math.abs(distTop) })
+  if (distBottom > 0) candidates.push({ side: 'bottom', dist: Math.abs(distBottom) })
+
+  if (candidates.length === 0) {
+    const srcCx = srcRect.x + srcRect.w / 2
+    const srcCy = srcRect.y + srcRect.h / 2
+    const dx = dstCx - srcCx
+    const dy = dstCy - srcCy
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      return dx > 0 ? 'right' : 'left'
+    }
+    return dy > 0 ? 'bottom' : 'top'
+  }
+
+  candidates.sort((a, b) => a.dist - b.dist)
+  return candidates[0].side
+}
+
 /** ウェイポイント配列 → SVG path d属性 */
 export function pointsToPath(points: Point[]): string {
   if (points.length === 0) return ''
