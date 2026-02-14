@@ -197,18 +197,19 @@ export function reduceCrossings(
 const PORT_RANGE_RATIO = 0.6
 
 /**
- * 同じノードの同じ辺に接続する複数エッジの接続点を辺に沿って均等分散。
+ * 同じノードの同じ辺に接続する全エッジの接続点を辺に沿って均等分散。
  *
- * グルーピング: ノードID + 辺（srcSide/dstSide）
- * 配置ルール: 辺の中央 PORT_RANGE_RATIO の範囲を N+1 等分した位置に配置
- *   - 1本: 中央
- *   - 2本: 中央から均等に ±offset
- *   - 3本: 中央 + ±offset
+ * グルーピング: ノードID + 辺（src/dst を区別しない）
+ *   → 同じ辺に出る線と入る線がある場合も同一グループとして分散する
+ *
+ * 配置ルール: 辺の中央 PORT_RANGE_RATIO の範囲に均等配置
+ *   - 1本: 辺の中央
+ *   - 2本以上: 辺の中央60%に均等分散
  *
  * enforceEdgeRules の後に呼ぶこと（辺座標が確定した後に分散する）。
  */
 export function spreadPorts(routed: RoutedEdge[], nodes: Record<string, DiagramNode>): void {
-  if (routed.length < 2) return
+  if (routed.length === 0) return
 
   interface PortEntry {
     edgeIdx: number
@@ -218,7 +219,7 @@ export function spreadPorts(routed: RoutedEdge[], nodes: Record<string, DiagramN
     targetCoord: number
   }
 
-  // ノードID + 辺 でグルーピング
+  // ノードID + 辺 でグルーピング（src/dst を区別しない — 同じ辺の全エッジを1グループ）
   const portGroups = new Map<string, PortEntry[]>()
 
   for (let ei = 0; ei < routed.length; ei++) {
@@ -228,31 +229,34 @@ export function spreadPorts(routed: RoutedEdge[], nodes: Record<string, DiagramN
     const dstPt = r.waypoints[r.waypoints.length - 1]
     const srcPt = r.waypoints[0]
 
-    // src 側
-    const srcKey = `${r.sourceNodeId}:${r.srcSide}`
-    if (!portGroups.has(srcKey)) portGroups.set(srcKey, [])
-    portGroups.get(srcKey)!.push({
-      edgeIdx: ei,
-      end: 'src',
-      side: r.srcSide,
-      targetCoord: (r.srcSide === 'left' || r.srcSide === 'right') ? dstPt.y : dstPt.x,
-    })
+    // src 側: このエッジの始点が sourceNode の srcSide 辺に接続
+    if (r.sourceNodeId) {
+      const key = `${r.sourceNodeId}:${r.srcSide}`
+      if (!portGroups.has(key)) portGroups.set(key, [])
+      portGroups.get(key)!.push({
+        edgeIdx: ei,
+        end: 'src',
+        side: r.srcSide,
+        targetCoord: (r.srcSide === 'left' || r.srcSide === 'right') ? dstPt.y : dstPt.x,
+      })
+    }
 
-    // dst 側
-    const dstKey = `${r.targetNodeId}:${r.dstSide}`
-    if (!portGroups.has(dstKey)) portGroups.set(dstKey, [])
-    portGroups.get(dstKey)!.push({
-      edgeIdx: ei,
-      end: 'dst',
-      side: r.dstSide,
-      targetCoord: (r.dstSide === 'left' || r.dstSide === 'right') ? srcPt.y : srcPt.x,
-    })
+    // dst 側: このエッジの終点が targetNode の dstSide 辺に接続
+    if (r.targetNodeId) {
+      const key = `${r.targetNodeId}:${r.dstSide}`
+      if (!portGroups.has(key)) portGroups.set(key, [])
+      portGroups.get(key)!.push({
+        edgeIdx: ei,
+        end: 'dst',
+        side: r.dstSide,
+        targetCoord: (r.dstSide === 'left' || r.dstSide === 'right') ? srcPt.y : srcPt.x,
+      })
+    }
   }
 
   for (const [groupKey, entries] of portGroups) {
-    if (entries.length < 2) continue
-
-    // ターゲット座標でソート（辺に沿った順番）
+    // 1本でも中央に配置する（enforceEdgeRulesが非中央座標を設定する場合があるため）
+    // ターゲット座標でソート（辺に沿った順番、2本以上の場合に交差を防ぐ）
     entries.sort((a, b) => a.targetCoord - b.targetCoord)
 
     // ノード情報から辺の長さを取得

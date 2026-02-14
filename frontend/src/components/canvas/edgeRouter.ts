@@ -16,7 +16,7 @@
  *   - edgeRouter.bfs.ts — グリッド構築・BFS探索・パス処理
  *   - edgeRouter.postprocess.ts — 交差削減・ポート分散・ナッジ
  *
- * Version: 6.3.0
+ * Version: 6.3.1
  * Last Updated: 2026-02-14
  */
 
