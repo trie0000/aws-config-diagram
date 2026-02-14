@@ -103,7 +103,7 @@ export function routeAllEdges(
 
   // 後処理: 交差削減 → ポート分散 → エッジナッジ
   reduceCrossings(routed, nodes, grid)
-  spreadPorts(routed)
+  spreadPorts(routed, nodes)
   nudgeEdges(routed)
 
   // 全ルールの最終適用
