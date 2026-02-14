@@ -16,7 +16,7 @@
  *   - edgeRouter.bfs.ts — グリッド構築・BFS探索・パス処理
  *   - edgeRouter.postprocess.ts — 交差削減・ポート分散・ナッジ
  *
- * Version: 6.3.1
+ * Version: 6.4.0
  * Last Updated: 2026-02-14
  */
 
@@ -27,7 +27,7 @@ import {
   buildObstacleGrid, unblockRect, reblockCells,
   bfsSearch, determineSide, simplifyPath, fallbackRoute,
 } from './edgeRouter.bfs'
-import { reduceCrossings, spreadPorts, nudgeEdges } from './edgeRouter.postprocess'
+import { reduceCrossings, spreadPorts, nudgeEdges, deflectFromIcons } from './edgeRouter.postprocess'
 
 // Re-export public API for consumers
 export { nodeIconRect, sideCenter, bestSides, directionToTarget, pointsToPath } from './edgeRouter.types'
@@ -110,6 +110,9 @@ export function routeAllEdges(
 
   // 確定後にポート分散（辺座標が決まった後でないと均等配置できない）
   spreadPorts(routed, nodes)
+
+  // アイコン貫通防止: 第三者ノードのアイコンを横切るセグメントを迂回
+  deflectFromIcons(routed, nodes)
 
   return routed
 }
