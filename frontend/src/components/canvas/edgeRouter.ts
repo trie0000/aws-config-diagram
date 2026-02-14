@@ -7,16 +7,16 @@
  *   3. BFS の出発/到着方向からアイコンの接続辺を後決定
  *   4. パスを簡略化（同方向セルをマージして折れ点のみ残す）
  *   5. 交差削減（交差エッジの代替ルートを試行）
- *   6. ポート分散（同一接続点のエッジを辺に沿って分散）
- *   7. エッジナッジ（重なったセグメントを等間隔にオフセット）
- *   8. enforceEdgeRules — 全ルールの最終適用
+ *   6. エッジナッジ（重なったセグメントを等間隔にオフセット）
+ *   7. enforceEdgeRules — 全ルールの最終適用
+ *   8. ポート分散（同じノード・同じ辺のエッジを均等配置）
  *
  * 実装は以下の3モジュールに分割:
  *   - edgeRouter.types.ts — 型定義・定数・共有ユーティリティ
  *   - edgeRouter.bfs.ts — グリッド構築・BFS探索・パス処理
  *   - edgeRouter.postprocess.ts — 交差削減・ポート分散・ナッジ
  *
- * Version: 6.2.0
+ * Version: 6.3.0
  * Last Updated: 2026-02-14
  */
 
@@ -101,13 +101,15 @@ export function routeAllEdges(
     }
   }
 
-  // 後処理: 交差削減 → ポート分散 → エッジナッジ
+  // 後処理: 交差削減 → エッジナッジ → ルール適用 → ポート分散
   reduceCrossings(routed, nodes, grid)
-  spreadPorts(routed, nodes)
   nudgeEdges(routed)
 
-  // 全ルールの最終適用
+  // 辺座標を確定
   enforceEdgeRules(routed, nodes)
+
+  // 確定後にポート分散（辺座標が決まった後でないと均等配置できない）
+  spreadPorts(routed, nodes)
 
   return routed
 }
