@@ -27,6 +27,7 @@ export interface Size {
 
 /** ノード種別 */
 export type NodeType =
+  | 'aws-cloud'
   | 'vpc'
   | 'subnet'
   | 'az'

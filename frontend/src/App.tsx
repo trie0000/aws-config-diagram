@@ -3,15 +3,22 @@
  *
  * モックアップ v3 (Light) に準拠した2画面構成:
  * - P01: スタート画面（アップロード + ステップ説明）
- * - P02: メインエディタ（ツールバー + Canvas + 詳細パネル + ステータスバー）
+ * - P02: メインエディタ（ツールバー + Canvas + サイドバー + ステータスバー）
  *
- * Version: 2.0.0
+ * サイドバー:
+ * - VPC フィルタ: チェックボックスで VPC 単位の表示/非表示
+ * - プロパティ: 選択ノードの詳細情報（AWS アイコン付き）
+ * - サイドバー自体の表示/非表示切替ボタン
+ *
+ * Version: 3.0.0
  * Last Updated: 2026-02-13
  */
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDiagram } from './hooks/useDiagram'
 import { DiagramCanvas } from './components/canvas/DiagramCanvas'
+import { ICON_FILES } from './constants/icons'
+import type { DiagramNode, NodeType } from './types/diagram'
 import type { ExportFormat } from './services/api'
 
 function App() {
@@ -61,9 +68,19 @@ function StartScreen({ diagram }: { diagram: ReturnType<typeof useDiagram> }) {
         <div className="w-full max-w-2xl">
           {/* ロゴ + タイトル */}
           <div className="mb-10 text-center">
-            {/* 青い「+」円アイコン（モックアップ P01 準拠） */}
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full border-2 border-blue-500 text-3xl font-light text-blue-500">
-              +
+            {/* クラウド構成アイコン群 */}
+            <div className="mx-auto mb-5 flex h-20 w-40 items-center justify-center gap-1">
+              <div className="relative flex h-20 w-40 items-end justify-center">
+                {/* 背景クラウド */}
+                <img src="/icons/aws_cloud.png" alt="" className="absolute left-1/2 top-0 h-14 w-14 -translate-x-1/2 opacity-20" />
+                {/* アイコン群 */}
+                <div className="relative z-10 flex items-end gap-2 pb-1">
+                  <img src="/icons/vpc_icon.png" alt="" className="h-8 w-8 drop-shadow-md" />
+                  <img src="/icons/ec2.png" alt="" className="h-10 w-10 drop-shadow-md" />
+                  <img src="/icons/rds.png" alt="" className="h-8 w-8 drop-shadow-md" />
+                  <img src="/icons/s3.png" alt="" className="h-7 w-7 drop-shadow-md" />
+                </div>
+              </div>
             </div>
             <h1 className="text-3xl font-bold text-slate-800">
               AWS Config Diagram Generator
@@ -80,15 +97,55 @@ function StartScreen({ diagram }: { diagram: ReturnType<typeof useDiagram> }) {
             onDragOver={(e) => e.preventDefault()}
             onClick={() => fileInputRef.current?.click()}
           >
-            {/* ネットワークアイコン（SVG） */}
-            <svg className="mb-5 h-14 w-14 text-slate-400" fill="none" viewBox="0 0 56 56" stroke="currentColor" strokeWidth={1.2}>
-              <circle cx="28" cy="16" r="8" />
-              <circle cx="14" cy="40" r="8" />
-              <circle cx="42" cy="40" r="8" />
-              <line x1="23" y1="23" x2="17" y2="33" />
-              <line x1="33" y1="23" x2="39" y2="33" />
-              <line x1="22" y1="40" x2="34" y2="40" />
-            </svg>
+            {/* クラウド構成図イメージ */}
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex flex-col items-center gap-1">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                  <svg className="h-8 w-8 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                    <path d="M4 6h16M4 12h16M4 18h10" />
+                    <text x="18" y="19" fontSize="7" fill="currentColor" stroke="none">{'{}'}</text>
+                  </svg>
+                </div>
+                <span className="text-[9px] text-slate-400">JSON</span>
+              </div>
+              <svg className="h-4 w-8 text-blue-400" viewBox="0 0 32 16" fill="none" stroke="currentColor" strokeWidth={2}>
+                <line x1="0" y1="8" x2="24" y2="8" />
+                <polyline points="20,3 26,8 20,13" />
+              </svg>
+              <div className="flex flex-col items-center gap-1">
+                <div className="flex gap-1 rounded-lg border border-orange-200 bg-orange-50/50 p-2">
+                  <img src="/icons/vpc_icon.png" alt="" className="h-6 w-6" />
+                  <img src="/icons/ec2.png" alt="" className="h-6 w-6" />
+                  <img src="/icons/rds.png" alt="" className="h-6 w-6" />
+                </div>
+                <span className="text-[9px] text-slate-400">構成図</span>
+              </div>
+              <svg className="h-4 w-8 text-blue-400" viewBox="0 0 32 16" fill="none" stroke="currentColor" strokeWidth={2}>
+                <line x1="0" y1="8" x2="24" y2="8" />
+                <polyline points="20,3 26,8 20,13" />
+              </svg>
+              <div className="flex flex-col items-center gap-1">
+                <div className="flex gap-1 rounded-lg border border-green-200 bg-green-50/50 p-2">
+                  <svg className="h-6 w-6 text-green-600" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="3" y="3" width="18" height="18" rx="2" fill="#16a34a" opacity="0.15" />
+                    <rect x="5" y="7" width="6" height="1.5" rx="0.5" fill="#16a34a" />
+                    <rect x="5" y="10" width="8" height="1.5" rx="0.5" fill="#16a34a" />
+                    <rect x="5" y="13" width="5" height="1.5" rx="0.5" fill="#16a34a" />
+                    <rect x="13" y="7" width="6" height="1.5" rx="0.5" fill="#16a34a" opacity="0.5" />
+                    <rect x="13" y="10" width="6" height="1.5" rx="0.5" fill="#16a34a" opacity="0.5" />
+                    <rect x="13" y="13" width="6" height="1.5" rx="0.5" fill="#16a34a" opacity="0.5" />
+                  </svg>
+                  <svg className="h-6 w-6 text-orange-500" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="3" y="3" width="18" height="18" rx="2" fill="#ea580c" opacity="0.15" />
+                    <rect x="5" y="5" width="14" height="3" rx="1" fill="#ea580c" opacity="0.6" />
+                    <rect x="5" y="10" width="14" height="9" rx="1" fill="#ea580c" opacity="0.2" />
+                    <rect x="7" y="12" width="4" height="3" rx="0.5" fill="#ea580c" opacity="0.5" />
+                    <rect x="13" y="12" width="4" height="3" rx="0.5" fill="#ea580c" opacity="0.5" />
+                  </svg>
+                </div>
+                <span className="text-[9px] text-slate-400">Excel / PPTX</span>
+              </div>
+            </div>
             <p className="text-sm font-medium text-slate-700">
               Config JSON をここにドロップ
             </p>
@@ -125,28 +182,15 @@ function StartScreen({ diagram }: { diagram: ReturnType<typeof useDiagram> }) {
             </div>
           )}
 
-          {/* ステップ説明カード（P01 準拠） */}
+          {/* ステップ説明カード */}
           <div className="mx-auto mt-10 grid max-w-2xl grid-cols-3 gap-4">
-            <StepCard
-              step={1}
-              title="JSONをアップロード"
-              description="AWS ConfigのJSONをドロップ"
-            />
-            <StepCard
-              step={2}
-              title="構成図を自動生成"
-              description="VPC / SG / 接続を解析"
-            />
-            <StepCard
-              step={3}
-              title="Excel/PPTXでエクスポート"
-              description="ドキュメントとして出力"
-            />
+            <StepCard step={1} title="JSONをアップロード" description="AWS ConfigのJSONをドロップ" icon="/icons/cloudtrail.png" />
+            <StepCard step={2} title="構成図を自動生成" description="VPC / SG / 接続を解析" icon="/icons/vpc_icon.png" />
+            <StepCard step={3} title="Excel/PPTXでエクスポート" description="ドキュメントとして出力" icon="/icons/cloudwatch.png" />
           </div>
         </div>
       </div>
 
-      {/* フッター */}
       <footer className="py-4 text-center text-xs text-slate-400">
         &copy; 2026 AWS Config Diagram Generator &nbsp;|&nbsp; ローカル完結 &nbsp;|&nbsp; データ外部送信なし
       </footer>
@@ -154,14 +198,17 @@ function StartScreen({ diagram }: { diagram: ReturnType<typeof useDiagram> }) {
   )
 }
 
-/** ステップ説明カード */
-function StepCard({ step, title, description }: { step: number; title: string; description: string }) {
+function StepCard({ step, title, description, icon }: { step: number; title: string; description: string; icon?: string }) {
   return (
     <div className="rounded-lg bg-white p-4 shadow-sm">
       <div className="mb-2 flex items-center gap-2">
-        <span className="text-base text-blue-500">
-          {step === 1 ? '\u{1F4C4}' : step === 2 ? '\u{1F4BB}' : '\u{1F4E5}'}
-        </span>
+        {icon ? (
+          <img src={icon} alt="" className="h-6 w-6 shrink-0" />
+        ) : (
+          <span className="text-base text-blue-500">
+            {step === 1 ? '\u{1F4C4}' : step === 2 ? '\u{1F4BB}' : '\u{1F4E5}'}
+          </span>
+        )}
         <span className="text-sm font-semibold text-slate-700">
           Step {step}: {title}
         </span>
@@ -172,13 +219,54 @@ function StepCard({ step, title, description }: { step: number; title: string; d
 }
 
 // ============================================================
-// エディタ画面（P02 準拠）
+// エディタ画面（P02 準拠 + サイドバー）
 // ============================================================
+
+type SidebarTab = 'vpc' | 'property'
 
 function EditorScreen({ diagram }: { diagram: ReturnType<typeof useDiagram> }) {
   const nodeCount = diagram.state ? Object.keys(diagram.state.nodes).length : 0
   const edgeCount = diagram.state ? Object.keys(diagram.state.edges).length : 0
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>('vpc')
+  const [hiddenVpcIds, setHiddenVpcIds] = useState<Set<string>>(new Set())
+
+  // キーボードショートカット: Cmd+Z / Cmd+Shift+Z
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+        e.preventDefault()
+        if (e.shiftKey) {
+          diagram.redo()
+        } else {
+          diagram.undo()
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [diagram])
+
+  // VPC ノードのリストを取得
+  const vpcNodes = useMemo(() => {
+    if (!diagram.state) return []
+    return Object.values(diagram.state.nodes)
+      .filter(n => n.type === 'vpc')
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [diagram.state])
+
+  const toggleVpcVisibility = useCallback((vpcId: string) => {
+    setHiddenVpcIds(prev => {
+      const next = new Set(prev)
+      if (next.has(vpcId)) {
+        next.delete(vpcId)
+      } else {
+        next.add(vpcId)
+      }
+      return next
+    })
+  }, [])
 
   const handleExport = useCallback(
     (format: ExportFormat) => {
@@ -188,13 +276,19 @@ function EditorScreen({ diagram }: { diagram: ReturnType<typeof useDiagram> }) {
     [diagram],
   )
 
+  // ノード選択時にプロパティタブに自動切替
+  const handleSelectNode = useCallback((nodeId: string | null) => {
+    diagram.selectNode(nodeId)
+    if (nodeId && sidebarOpen) {
+      setSidebarTab('property')
+    }
+  }, [diagram, sidebarOpen])
+
   return (
     <div className="flex h-screen flex-col bg-white text-slate-800">
-      {/* ツールバー（P02 準拠） */}
+      {/* ツールバー */}
       <header className="flex h-12 items-center justify-between border-b border-slate-200 bg-white px-3">
-        {/* 左: ロゴ + ツールボタン群 */}
         <div className="flex items-center gap-1">
-          {/* ロゴ「+」ボタン */}
           <button
             className="flex h-8 w-8 items-center justify-center rounded-md bg-blue-600 text-sm font-bold text-white transition-colors hover:bg-blue-700"
             title="新規ファイル"
@@ -205,26 +299,48 @@ function EditorScreen({ diagram }: { diagram: ReturnType<typeof useDiagram> }) {
 
           <ToolbarDivider />
 
-          {/* ファイルメニュー */}
           <span className="px-2 text-xs font-medium text-slate-600">
             {diagram.state?.meta.title ?? 'AWS Config Diagram'}
           </span>
 
           <ToolbarDivider />
 
-          {/* Undo / Redo（将来実装、UI だけ配置） */}
-          <ToolbarButton icon="&#x2190;" title="元に戻す" disabled />
-          <ToolbarButton icon="&#x2192;" title="やり直す" disabled />
+          <ToolbarButton icon="&#x2190;" title="元に戻す (⌘Z)" disabled={!diagram.canUndo} onClick={diagram.undo} />
+          <ToolbarButton icon="&#x2192;" title="やり直す (⌘⇧Z)" disabled={!diagram.canRedo} onClick={diagram.redo} />
 
           <ToolbarDivider />
 
-          {/* レイアウトツール（将来実装） */}
           <ToolbarButton icon="&#x2261;" title="自動レイアウト" disabled />
+
+          <ToolbarDivider />
+
+          <label className="flex items-center gap-1.5 px-1 text-xs text-slate-600 select-none cursor-pointer" title="コンテナ（VPC/Subnet等）のリサイズ時に内側のノードも連動して拡大縮小する">
+            <input
+              type="checkbox"
+              checked={diagram.syncChildResize}
+              onChange={(e) => diagram.setSyncChildResize(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            子ノード連動
+          </label>
         </div>
 
-        {/* 右: エクスポート + 閉じる */}
         <div className="flex items-center gap-2">
-          {/* 閉じるボタン */}
+          {/* サイドバー開閉ボタン */}
+          <button
+            className={`flex h-8 w-8 items-center justify-center rounded-md text-sm transition-colors ${
+              sidebarOpen ? 'bg-slate-100 text-slate-700' : 'text-slate-400 hover:bg-slate-100'
+            }`}
+            title={sidebarOpen ? 'サイドバーを閉じる' : 'サイドバーを開く'}
+            onClick={() => setSidebarOpen(prev => !prev)}
+          >
+            {/* サイドバーアイコン */}
+            <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <rect x="1" y="2" width="14" height="12" rx="2" />
+              <line x1="10" y1="2" x2="10" y2="14" />
+            </svg>
+          </button>
+
           <button
             className="rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100"
             onClick={diagram.reset}
@@ -246,7 +362,6 @@ function EditorScreen({ diagram }: { diagram: ReturnType<typeof useDiagram> }) {
 
             {showExportMenu && (
               <>
-                {/* overlay to close */}
                 <div className="fixed inset-0 z-10" onClick={() => setShowExportMenu(false)} />
                 <div className="absolute right-0 top-full z-20 mt-1 w-44 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
                   <button
@@ -276,21 +391,63 @@ function EditorScreen({ diagram }: { diagram: ReturnType<typeof useDiagram> }) {
             <DiagramCanvas
               state={diagram.state}
               selectedNodeId={diagram.selectedNodeId}
-              onSelectNode={diagram.selectNode}
+              onSelectNode={handleSelectNode}
               onMoveNode={diagram.updateNodePosition}
+              onResizeNode={diagram.updateNodeSize}
+              onCommitSnapshot={diagram.commitSnapshot}
+              hiddenVpcIds={hiddenVpcIds}
             />
           )}
         </div>
 
-        {/* 右パネル: リソース詳細（P02/P04 準拠） */}
-        {diagram.selectedNode && (
-          <aside className="w-80 overflow-y-auto border-l border-slate-200 bg-white">
-            <DetailPanel node={diagram.selectedNode} />
+        {/* サイドバー（表示/非表示切替可能） */}
+        {sidebarOpen && (
+          <aside className="flex w-80 shrink-0 flex-col border-l border-slate-200 bg-white">
+            {/* タブヘッダー */}
+            <div className="flex shrink-0 border-b border-slate-200">
+              <button
+                className={`flex-1 px-4 py-2.5 text-xs font-semibold transition-colors ${
+                  sidebarTab === 'vpc'
+                    ? 'border-b-2 border-blue-500 text-blue-600'
+                    : 'text-slate-400 hover:text-slate-600'
+                }`}
+                onClick={() => setSidebarTab('vpc')}
+              >
+                VPC フィルタ
+              </button>
+              <button
+                className={`flex-1 px-4 py-2.5 text-xs font-semibold transition-colors ${
+                  sidebarTab === 'property'
+                    ? 'border-b-2 border-blue-500 text-blue-600'
+                    : 'text-slate-400 hover:text-slate-600'
+                }`}
+                onClick={() => setSidebarTab('property')}
+              >
+                プロパティ
+              </button>
+            </div>
+
+            {/* タブコンテンツ */}
+            <div className="flex-1 overflow-y-auto">
+              {sidebarTab === 'vpc' ? (
+                <VpcFilterPanel
+                  vpcNodes={vpcNodes}
+                  hiddenVpcIds={hiddenVpcIds}
+                  onToggle={toggleVpcVisibility}
+                />
+              ) : diagram.selectedNode ? (
+                <DetailPanel node={diagram.selectedNode} />
+              ) : (
+                <div className="flex h-full items-center justify-center p-4 text-xs text-slate-400">
+                  リソースをクリックして詳細を表示
+                </div>
+              )}
+            </div>
           </aside>
         )}
       </main>
 
-      {/* ステータスバー（P02 準拠） */}
+      {/* ステータスバー */}
       <footer className="flex h-7 items-center justify-between border-t border-slate-200 bg-white px-4 text-xs text-slate-400">
         <span>Nodes: {nodeCount} | Edges: {edgeCount}</span>
         <span>Grid: ON | Snap: ON</span>
@@ -304,7 +461,7 @@ function EditorScreen({ diagram }: { diagram: ReturnType<typeof useDiagram> }) {
 // ツールバー部品
 // ============================================================
 
-function ToolbarButton({ icon, title, disabled }: { icon: string; title: string; disabled?: boolean }) {
+function ToolbarButton({ icon, title, disabled, onClick }: { icon: string; title: string; disabled?: boolean; onClick?: () => void }) {
   return (
     <button
       className={`flex h-8 w-8 items-center justify-center rounded-md text-sm transition-colors ${
@@ -314,6 +471,7 @@ function ToolbarButton({ icon, title, disabled }: { icon: string; title: string;
       }`}
       title={title}
       disabled={disabled}
+      onClick={onClick}
     >
       {icon}
     </button>
@@ -325,21 +483,89 @@ function ToolbarDivider() {
 }
 
 // ============================================================
-// 詳細パネル（P04 準拠）
+// VPC フィルタパネル
 // ============================================================
 
-function DetailPanel({ node }: { node: ReturnType<typeof useDiagram>['selectedNode'] }) {
-  if (!node) return null
+function VpcFilterPanel({
+  vpcNodes,
+  hiddenVpcIds,
+  onToggle,
+}: {
+  vpcNodes: DiagramNode[]
+  hiddenVpcIds: Set<string>
+  onToggle: (vpcId: string) => void
+}) {
+  if (vpcNodes.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center p-4 text-xs text-slate-400">
+        VPC が見つかりません
+      </div>
+    )
+  }
 
+  return (
+    <div className="p-4">
+      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        表示する VPC
+      </p>
+      <div className="space-y-2">
+        {vpcNodes.map(vpc => {
+          const isVisible = !hiddenVpcIds.has(vpc.id)
+          const region = (vpc.metadata?.region as string) || ''
+          const cidr = (vpc.metadata?.cidr as string) || ''
+          return (
+            <label
+              key={vpc.id}
+              className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-100 px-3 py-2.5 transition-colors hover:bg-slate-50"
+            >
+              <input
+                type="checkbox"
+                checked={isVisible}
+                onChange={() => onToggle(vpc.id)}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <img src="/icons/vpc_icon.png" alt="" className="h-5 w-5 shrink-0" />
+                  <span className="truncate text-sm font-medium text-slate-700">
+                    {vpc.label}
+                  </span>
+                </div>
+                <div className="mt-1 flex gap-2 text-[10px] text-slate-400">
+                  {region && <span>{region}</span>}
+                  {cidr && <span className="font-mono">{cidr}</span>}
+                </div>
+              </div>
+            </label>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// 詳細パネル（P04 準拠 + AWS アイコン）
+// ============================================================
+
+function DetailPanel({ node }: { node: DiagramNode }) {
   const isAwsConfig = node.source === 'aws-config'
+  const iconFile = ICON_FILES[node.type as NodeType]
+  const meta = node.metadata as Record<string, unknown>
 
   return (
     <div className="p-4">
       {/* ヘッダー */}
       <div className="flex items-start gap-3">
-        {/* アイコン */}
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border-2 border-orange-500 bg-white text-xs font-bold text-orange-500">
-          {node.type.toUpperCase().slice(0, 3)}
+        {/* AWS アイコン */}
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white">
+          {iconFile ? (
+            <img src={`/icons/${iconFile}`} alt={node.type} className="h-7 w-7" />
+          ) : (
+            <span className="text-xs font-bold text-orange-500">
+              {node.type.toUpperCase().slice(0, 3)}
+            </span>
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-bold text-slate-800">{node.label}</h2>
@@ -361,41 +587,41 @@ function DetailPanel({ node }: { node: ReturnType<typeof useDiagram>['selectedNo
 
       {/* 基本情報セクション */}
       <DetailSection title="基本情報" defaultOpen>
-        <DetailRow label="ID" value={(node.metadata?.awsResourceId as string) ?? node.id} mono />
-        <DetailRow label="Type" value={(node.metadata?.awsResourceType as string) ?? node.type} />
-        {node.metadata?.instanceType && (
-          <DetailRow label="Instance Type" value={node.metadata.instanceType as string} />
+        <DetailRow label="ID" value={String(meta.awsResourceId ?? node.id)} mono />
+        <DetailRow label="Type" value={String(meta.awsResourceType ?? node.type)} />
+        {meta.instanceType != null && (
+          <DetailRow label="Instance Type" value={String(meta.instanceType)} />
         )}
-        {node.metadata?.engine && (
-          <DetailRow label="Engine" value={node.metadata.engine as string} />
+        {meta.engine != null && (
+          <DetailRow label="Engine" value={String(meta.engine)} />
         )}
-        {node.metadata?.tier && (
-          <DetailRow label="Tier" value={node.metadata.tier as string} />
+        {meta.tier != null && (
+          <DetailRow label="Tier" value={String(meta.tier)} />
         )}
       </DetailSection>
 
       {/* ネットワーク情報 */}
-      {(node.metadata?.vpcId || node.metadata?.subnetId || node.metadata?.availabilityZone) && (
+      {(meta.vpcId || meta.subnetId || meta.availabilityZone) ? (
         <DetailSection title="ネットワーク情報">
-          {node.metadata?.vpcId && (
-            <DetailRow label="VPC" value={node.metadata.vpcId as string} mono />
+          {meta.vpcId != null && (
+            <DetailRow label="VPC" value={String(meta.vpcId)} mono />
           )}
-          {node.metadata?.subnetId && (
-            <DetailRow label="Subnet" value={node.metadata.subnetId as string} mono />
+          {meta.subnetId != null && (
+            <DetailRow label="Subnet" value={String(meta.subnetId)} mono />
           )}
-          {node.metadata?.availabilityZone && (
-            <DetailRow label="AZ" value={node.metadata.availabilityZone as string} />
+          {meta.availabilityZone != null && (
+            <DetailRow label="AZ" value={String(meta.availabilityZone)} />
           )}
-          {node.metadata?.privateIpAddress && (
-            <DetailRow label="Private IP" value={node.metadata.privateIpAddress as string} mono />
+          {meta.privateIpAddress != null && (
+            <DetailRow label="Private IP" value={String(meta.privateIpAddress)} mono />
           )}
         </DetailSection>
-      )}
+      ) : null}
 
-      {/* メタデータ（全フィールド） */}
-      {Object.keys(node.metadata).length > 0 && (
+      {/* メタデータ */}
+      {Object.keys(meta).length > 0 && (
         <DetailSection title="メタデータ">
-          {Object.entries(node.metadata)
+          {Object.entries(meta)
             .filter(([k]) => !['awsResourceId', 'awsResourceType', 'vpcId', 'subnetId', 'availabilityZone', 'privateIpAddress', 'instanceType', 'engine', 'tier'].includes(k))
             .map(([key, value]) => (
               <DetailRow
@@ -422,7 +648,6 @@ function DetailPanel({ node }: { node: ReturnType<typeof useDiagram>['selectedNo
 // 詳細パネル部品
 // ============================================================
 
-/** 折りたたみセクション */
 function DetailSection({
   title,
   defaultOpen = true,
@@ -448,7 +673,6 @@ function DetailSection({
   )
 }
 
-/** キー・バリュー行 */
 function DetailRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex justify-between gap-3 text-xs">

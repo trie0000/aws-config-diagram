@@ -253,15 +253,27 @@ class DiagramStateConverter:
             ),
         )
 
-        # VPC 単位で階層構造を構築
+        # AWS Cloud コンテナ（全体を囲む外枠）
+        cloud_node_id = "node-aws-cloud"
+        region = ""
         vpcs = self.parser.get_vpcs()
-        for vpc in vpcs:
-            self._add_vpc(state, vpc)
+        if vpcs:
+            region = vpcs[0].get("region", "")
+        state.nodes[cloud_node_id] = DiagramNode(
+            id=cloud_node_id,
+            type="aws-cloud",
+            label=f"AWS Cloud{f' ({region})' if region else ''}",
+            metadata={"region": region},
+        )
 
-        # VPC 外サービス
-        self._add_edge_services(state)
-        self._add_data_services(state)
-        self._add_support_services(state)
+        # VPC 単位で階層構造を構築
+        for vpc in vpcs:
+            self._add_vpc(state, vpc, cloud_parent_id=cloud_node_id)
+
+        # VPC 外サービス（AWS Cloud の子にする）
+        self._add_edge_services(state, cloud_parent_id=cloud_node_id)
+        self._add_data_services(state, cloud_parent_id=cloud_node_id)
+        self._add_support_services(state, cloud_parent_id=cloud_node_id)
 
         # 接続線（エッジ）
         self._add_service_connections(state)
@@ -278,7 +290,7 @@ class DiagramStateConverter:
     # VPC + 内部リソース
     # ----------------------------------------------------------------
 
-    def _add_vpc(self, state: DiagramState, vpc: dict) -> None:
+    def _add_vpc(self, state: DiagramState, vpc: dict, cloud_parent_id: str | None = None) -> None:
         """VPC ノードと内部リソースを追加"""
         vpc_id = vpc["id"]
         vpc_node_id = f"node-{vpc_id}"
@@ -287,6 +299,7 @@ class DiagramStateConverter:
             id=vpc_node_id,
             type="vpc",
             label=f'{vpc["name"]} ({vpc["cidr"]})',
+            parent_id=cloud_parent_id,
             metadata={
                 "awsResourceId": vpc_id,
                 "awsResourceType": "AWS::EC2::VPC",
@@ -484,12 +497,13 @@ class DiagramStateConverter:
     # VPC 外サービス
     # ----------------------------------------------------------------
 
-    def _add_edge_services(self, state: DiagramState) -> None:
+    def _add_edge_services(self, state: DiagramState, cloud_parent_id: str | None = None) -> None:
         """エッジサービス（VPC外左側）: Route53, CloudFront, API Gateway"""
         for zone in self.parser.get_route53_hosted_zones():
             node_id = f"node-{zone['id']}"
             state.nodes[node_id] = DiagramNode(
                 id=node_id, type="route53", label=zone["name"],
+                parent_id=cloud_parent_id,
                 metadata={
                     "awsResourceId": zone["id"],
                     "awsResourceType": "AWS::Route53::HostedZone",
@@ -500,6 +514,7 @@ class DiagramStateConverter:
             node_id = f"node-{dist['id']}"
             state.nodes[node_id] = DiagramNode(
                 id=node_id, type="cloudfront", label=dist["name"],
+                parent_id=cloud_parent_id,
                 metadata={
                     "awsResourceId": dist["id"],
                     "awsResourceType": "AWS::CloudFront::Distribution",
@@ -510,19 +525,21 @@ class DiagramStateConverter:
             node_id = f"node-{api['id']}"
             state.nodes[node_id] = DiagramNode(
                 id=node_id, type="api-gateway", label=api["name"],
+                parent_id=cloud_parent_id,
                 metadata={
                     "awsResourceId": api["id"],
                     "awsResourceType": api.get("aws_type", "AWS::ApiGateway::RestApi"),
                 },
             )
 
-    def _add_data_services(self, state: DiagramState) -> None:
+    def _add_data_services(self, state: DiagramState, cloud_parent_id: str | None = None) -> None:
         """データパスサービス（VPC下部）: Lambda, DynamoDB, SQS, SNS, S3"""
         for fn in self.parser.get_lambda_functions():
             # VPC Lambda は VPC 内に配置されるべきだが、VPC ID がない場合は外部扱い
             node_id = f"node-{fn['id']}"
             state.nodes[node_id] = DiagramNode(
                 id=node_id, type="lambda", label=fn["name"],
+                parent_id=cloud_parent_id,
                 metadata={
                     "awsResourceId": fn["id"],
                     "awsResourceType": "AWS::Lambda::Function",
@@ -534,6 +551,7 @@ class DiagramStateConverter:
             node_id = f"node-{table['id']}"
             state.nodes[node_id] = DiagramNode(
                 id=node_id, type="dynamodb", label=table["name"],
+                parent_id=cloud_parent_id,
                 metadata={
                     "awsResourceId": table["id"],
                     "awsResourceType": "AWS::DynamoDB::Table",
@@ -544,6 +562,7 @@ class DiagramStateConverter:
             node_id = f"node-{q['id']}"
             state.nodes[node_id] = DiagramNode(
                 id=node_id, type="sqs", label=q["name"],
+                parent_id=cloud_parent_id,
                 metadata={
                     "awsResourceId": q["id"],
                     "awsResourceType": "AWS::SQS::Queue",
@@ -554,6 +573,7 @@ class DiagramStateConverter:
             node_id = f"node-{topic['id']}"
             state.nodes[node_id] = DiagramNode(
                 id=node_id, type="sns", label=topic["name"],
+                parent_id=cloud_parent_id,
                 metadata={
                     "awsResourceId": topic["id"],
                     "awsResourceType": "AWS::SNS::Topic",
@@ -564,18 +584,20 @@ class DiagramStateConverter:
             node_id = f"node-{bucket['id']}"
             state.nodes[node_id] = DiagramNode(
                 id=node_id, type="s3", label=bucket["name"],
+                parent_id=cloud_parent_id,
                 metadata={
                     "awsResourceId": bucket["id"],
                     "awsResourceType": "AWS::S3::Bucket",
                 },
             )
 
-    def _add_support_services(self, state: DiagramState) -> None:
+    def _add_support_services(self, state: DiagramState, cloud_parent_id: str | None = None) -> None:
         """サポートサービス: KMS, CloudTrail, CloudWatch, ECS, EKS, AutoScaling"""
         for key in self.parser.get_kms_keys():
             node_id = f"node-{key['id']}"
             state.nodes[node_id] = DiagramNode(
                 id=node_id, type="kms", label=key["name"],
+                parent_id=cloud_parent_id,
                 metadata={
                     "awsResourceId": key["id"],
                     "awsResourceType": "AWS::KMS::Key",
@@ -586,6 +608,7 @@ class DiagramStateConverter:
             node_id = f"node-{trail['id']}"
             state.nodes[node_id] = DiagramNode(
                 id=node_id, type="cloudtrail", label=trail["name"],
+                parent_id=cloud_parent_id,
                 metadata={
                     "awsResourceId": trail["id"],
                     "awsResourceType": "AWS::CloudTrail::Trail",
@@ -596,6 +619,7 @@ class DiagramStateConverter:
             node_id = f"node-{alarm['id']}"
             state.nodes[node_id] = DiagramNode(
                 id=node_id, type="cloudwatch", label=alarm["name"],
+                parent_id=cloud_parent_id,
                 metadata={
                     "awsResourceId": alarm["id"],
                     "awsResourceType": "AWS::CloudWatch::Alarm",
@@ -606,6 +630,7 @@ class DiagramStateConverter:
             node_id = f"node-{cluster['id']}"
             state.nodes[node_id] = DiagramNode(
                 id=node_id, type="ecs", label=cluster["name"],
+                parent_id=cloud_parent_id,
                 metadata={
                     "awsResourceId": cluster["id"],
                     "awsResourceType": "AWS::ECS::Cluster",
@@ -616,6 +641,7 @@ class DiagramStateConverter:
             node_id = f"node-{cluster['id']}"
             state.nodes[node_id] = DiagramNode(
                 id=node_id, type="eks", label=cluster["name"],
+                parent_id=cloud_parent_id,
                 metadata={
                     "awsResourceId": cluster["id"],
                     "awsResourceType": "AWS::EKS::Cluster",
@@ -626,6 +652,7 @@ class DiagramStateConverter:
             node_id = f"node-{asg['id']}"
             state.nodes[node_id] = DiagramNode(
                 id=node_id, type="auto-scaling", label=asg["name"],
+                parent_id=cloud_parent_id,
                 metadata={
                     "awsResourceId": asg["id"],
                     "awsResourceType": "AWS::AutoScaling::AutoScalingGroup",
@@ -636,6 +663,7 @@ class DiagramStateConverter:
             node_id = f"node-{env['id']}"
             state.nodes[node_id] = DiagramNode(
                 id=node_id, type="elastic-beanstalk", label=env["name"],
+                parent_id=cloud_parent_id,
                 metadata={
                     "awsResourceId": env["id"],
                     "awsResourceType": "AWS::ElasticBeanstalk::Environment",
@@ -646,6 +674,7 @@ class DiagramStateConverter:
             node_id = f"node-{cache['id']}"
             state.nodes[node_id] = DiagramNode(
                 id=node_id, type="elasticache", label=cache["name"],
+                parent_id=cloud_parent_id,
                 metadata={
                     "awsResourceId": cache["id"],
                     "awsResourceType": "AWS::ElastiCache::CacheCluster",
@@ -656,6 +685,7 @@ class DiagramStateConverter:
             node_id = f"node-{rs['id']}"
             state.nodes[node_id] = DiagramNode(
                 id=node_id, type="redshift", label=rs["name"],
+                parent_id=cloud_parent_id,
                 metadata={
                     "awsResourceId": rs["id"],
                     "awsResourceType": "AWS::Redshift::Cluster",
