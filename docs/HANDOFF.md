@@ -1,60 +1,68 @@
 # HANDOFF.md - セッション引き継ぎ
 
-> 最終更新: 2026-02-14 セッション11 (Canvas UX改善 + edgeRouter v2.0.0)
+> 最終更新: 2026-02-14 セッション13 (NAT GW境界配置 + エッジルーティング改善 + 矢印マーカー修正)
 
 ## 現在の状態
 
-**Canvas UX 大幅改善済み**。edgeRouter v2.0.0（障害物回避BFS）実装完了、スナップガイドライン（ドラッグ＋リサイズ）、タッチパッドズーム感度修正、矢印接続位置修正。次のステップは P1 エッジナッジ（重なった矢印の等間隔オフセット）。
+**NAT GW配置改善 + エッジルーティング品質向上 + 矢印マーカー修正完了**。
+NAT GatewayをSubnet右端境界にまたがる位置に配置、reduceCrossingsのノード参照バグ修正、
+矢印マーカーをuserSpaceOnUseで固定サイズ化。ハイライト時の大きい矢印マーカー追加。
+
+## 完了済み（セッション12-13: NAT GW + エッジ + 矢印修正）
+
+### NAT Gateway 境界配置
+- [x] `aws_config_parser.py`: `get_nat_usage_map()` メソッド追加（ルートテーブル解析→NAT利用Subnet特定）
+- [x] `diagram_state.py`: NAT GWの`parent_id`をSubnetに変更 + Subnet→NATエッジ生成
+- [x] `layout_engine.py`: NAT GWをSubnet右端境界にまたがる位置に配置（通常フローから除外）
+
+### エッジルーティング改善
+- [x] `edgeRouter.types.ts`: RoutedEdgeに`sourceNodeId`/`targetNodeId`を追加
+- [x] `edgeRouter.ts`: 全`routed.push()`にsourceNodeId/targetNodeIdを追加
+- [x] `edgeRouter.postprocess.ts`: `reduceCrossings`でsourceNodeId/targetNodeIdを正確に参照（findClosestNodeのフォールバック付き）
+- [x] ルーティングロジックは元のBFS center→center + determineSideを維持（bestSides/sideCenter起点は品質低下のため不採用）
+
+### 矢印マーカー修正
+- [x] `DiagramCanvas.tsx`: 通常矢印（8×6px）+ 大きい矢印（12×9px）、両方`markerUnits="userSpaceOnUse"`
+- [x] `EdgeLine.tsx`: ハイライト時に`arrowhead-lg`使用
+
+### 試行後にリバートした変更（重要な教訓）
+- `ensureArrowSegment`（矢印用直線セグメント確保）→ 不要な折れ曲がり発生、削除
+- `orthogonalizeSegments`（斜め線修正）→ ルート品質低下、削除
+- `bestSides`でのBFS接続辺決定 → NAT GW等で不正な方向、determineSideに戻す
+- BFS起点をsideCenterに変更 → 不要な曲がり、center→centerに戻す
+- `markerUnits`なし → strokeWidth倍率で矢印巨大化
+- 矢印サイズ6×4px → 小さすぎて視認不可
+
+### 変更ファイル（セッション12-13）
+
+```
+aws_config_parser.py                               - get_nat_usage_map() 追加
+diagram_state.py                                   - NAT GW parent_id 変更 + Subnet→NAT エッジ
+layout_engine.py                                   - NAT GW Subnet右端境界配置
+frontend/src/components/canvas/DiagramCanvas.tsx    - 矢印マーカー (userSpaceOnUse + arrowhead-lg)
+frontend/src/components/canvas/EdgeLine.tsx         - ハイライト時 arrowhead-lg
+frontend/src/components/canvas/edgeRouter.ts        - sourceNodeId/targetNodeId 追加
+frontend/src/components/canvas/edgeRouter.types.ts  - RoutedEdge に sourceNodeId/targetNodeId
+frontend/src/components/canvas/edgeRouter.postprocess.ts - reduceCrossings ノード参照修正
+```
 
 ## 完了済み（セッション11: Canvas UX改善）
 
-### edgeRouter v2.0.0 — 障害物回避BFSルーティング（P0完了）
+### edgeRouter v2.0.0 → v5.0.0 — 障害物回避BFSルーティング
 
-- [x] `edgeRouter.ts` v2.0.0: グリッドBFS 1回/エッジ、方向後決定（`determineSide()`）
-  - BFS: center→center、Dijkstra的（折れ曲がりペナルティ付き）
-  - 始点・終点ノードの障害物を一時的に解除して経路探索
-  - `simplifyPath()` で折れ点のみ残す
-  - `bestSides()` + `fallbackRoute()` でBFS失敗時のフォールバック
-- [x] useMemo依存チェーン最適化: nodes→containers/icons→edges→routedEdges
-  - `nodes` 配列を毎レンダー再生成していた問題を修正（パフォーマンス 2.6ms/scroll）
-- [x] DiagramCanvasから重複関数定義を削除（nodeIconRect, sideCenter, bestSides → edgeRouterからimport）
+- [x] `edgeRouter.ts` v5.0.0: オーケストレータ（3モジュール分割済み）
+  - `edgeRouter.types.ts` — 型定義・定数・共有ユーティリティ
+  - `edgeRouter.bfs.ts` — グリッド構築・BFS探索・パス処理
+  - `edgeRouter.postprocess.ts` — 交差削減・ポート分散・ナッジ
+- [x] BFS: center→center、Dijkstra的（折れ曲がりペナルティ付き）
+- [x] 後処理: reduceCrossings → spreadPorts → nudgeEdges
+- [x] useMemo依存チェーン最適化
 
-### スナップガイドライン — PowerPoint風
+### スナップガイドライン + その他UX
 
-- [x] アイコンドラッグ時: 隣接アイコンの中心とX/Y軸で揃うとスナップ（閾値5px）
-  - `iconsRef` でuseMemoの外からアイコン一覧を参照
-  - 各軸で最も近い候補1つだけにスナップ
-- [x] コンテナリサイズ時: ドラッグ辺が他コンテナの辺（左/右/上/下）にスナップ
-  - `containersRef` でコンテナ一覧を参照
-  - e/w/n/sハンドル方向に応じて該当辺を比較
-- [x] 赤い破線ガイドライン表示（`#f43f5e`, strokeWidth=0.8, dasharray=4 4）
-- [x] mouseUp時にガイドラインクリア
-
-### その他のUX修正
-
-- [x] タッチパッドズーム感度: 固定factor(1.1/0.9) → deltaY比例(`1 + clampedDelta * 0.002`)
-- [x] 矢印接続位置: `pullBackEndpoint` 削除。SVG marker `refX=8` で矢印先端がアイコン辺に密着
-- [x] コンテナリサイズハンドル（8方向: nw/ne/sw/se/n/s/e/w）
-- [x] ミニマップ（左上固定、表示範囲ドラッグ可能）
-- [x] スクロールバー（縦横）
-- [x] VPCフィルタ（チェックボックスで非表示切替）
-- [x] Undo/Redo（`onCommitSnapshot` でドラッグ/リサイズ開始時にスナップショット保存）
-
-### 変更ファイル（セッション11）
-
-```
-frontend/src/components/canvas/edgeRouter.ts     - v2.0.0 新規（BFS障害物回避ルーティング）
-frontend/src/components/canvas/DiagramCanvas.tsx  - スナップガイドライン、ズーム感度、矢印修正
-```
-
-## 矢印ルーティング改善ロードマップ（LAYOUT_RESEARCH.md §5）
-
-| 優先度 | 改善項目 | 状態 | 効果 |
-|--------|---------|------|------|
-| **P0** | 障害物回避（BFS） | ✅ 完了 | 矢印がアイコンを突き抜けなくなる |
-| **P1** | エッジナッジ | 🔜 次 | 重なった矢印が区別できる |
-| **P2** | 交差軽減 | 未着手 | フロー追跡が容易に |
-| P3 | ポート最適化 | 未着手 | 曲がりが減る |
+- [x] ドラッグ＋リサイズ時のスナップガイドライン
+- [x] タッチパッドズーム感度修正
+- [x] コンテナリサイズ、ミニマップ、スクロールバー、VPCフィルタ、Undo/Redo
 
 ## 完了済み（セッション1-10）
 
@@ -63,11 +71,9 @@ frontend/src/components/canvas/DiagramCanvas.tsx  - スナップガイドライ�
 
 ### セッション1-4: v4.2まで
 - [x] v1〜v4.2: AWSConfigParser + レイアウトエンジン + Excel/PPTX出力
-- [x] 4つのJSON（tabelog, realistic, sample, real）で動作確認
 
 ### セッション5: テスト環境 + 分析
-- [x] AWS CLI テストスクリプト 13本、Config Snapshot取得（259リソース/80タイプ/378リレーション）
-- [x] 競合分析 + Config JSON実データ分析
+- [x] AWS CLI テストスクリプト 13本、Config Snapshot取得
 
 ### セッション6-7: Web エディタ要件 + 技術スタック
 - [x] React 19 + TypeScript + Vite + FastAPI(localhost) に確定
@@ -76,23 +82,22 @@ frontend/src/components/canvas/DiagramCanvas.tsx  - スナップガイドライ�
 - [x] Vite + shadcn/ui セットアップ、FastAPI パイプライン実装
 
 ### セッション10: モックアップ v3 ライトテーマ UI
-- [x] DiagramCanvas v2.0、App.tsx（P01/P02準拠）、useDiagram.ts
-- [x] SG経由エッジ生成（0→14本）、メタデータ強化
+- [x] DiagramCanvas v2.0、SG経由エッジ生成（0→14本）、メタデータ強化
 </details>
 
 ## 次のアクション
 
-1. **P1 エッジナッジ** — 同じ線分上の複数矢印を等間隔オフセット
-2. **P2 交差軽減** — ルーティング後の交差をswapで削減
-3. **ノード追加UI（P06）** — 外部システム/コメントノードの手動追加
-4. **レイヤー管理（P08）** — Infrastructure/Security/External等の表示切替
-5. **エクスポートダイアログ（P05）** — DiagramState込みの詳細エクスポート
+1. **ノード追加UI（P06）** — 外部システム/コメントノードの手動追加
+2. **レイヤー管理（P08）** — Infrastructure/Security/External等の表示切替
+3. **エクスポートダイアログ（P05）** — DiagramState込みの詳細エクスポート
 
 ## 技術メモ
 
 - **edgeRouter パイプライン**: グリッドセル20px、障害物マージン1セル、BFS最大20000セル、折れ曲がりペナルティ2
-- **SVG arrowhead**: `<marker refX=8>` で矢印先端がpath終点に密着。pullBackEndpoint不要
+- **SVG arrowhead**: `markerUnits="userSpaceOnUse"` で固定サイズ。通常8×6px、ハイライト12×9px
+- **RoutedEdge**: sourceNodeId/targetNodeIdでreduceCrossingsの正確なノード参照を実現
+- **重要な教訓**: BFSパイプライン後の後処理でwaypointsを変更するのは品質低下の元。determineSide（BFSパス方向）が最適、bestSides（相対位置）はフォールバック専用
 - **スナップ閾値**: `SNAP_THRESHOLD = 5`（SVG座標px）
 - **useMemoチェーン**: nodes → containers/icons → sortedContainers → edges → routedEdges
 - Vite: port 5173、FastAPI: port 8000
-- テストデータ: `frontend/public/test_data.json`
+- テストデータ: `frontend/public/realistic_aws_config.json`
