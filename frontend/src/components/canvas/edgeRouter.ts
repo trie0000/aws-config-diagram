@@ -53,7 +53,7 @@ export function routeAllEdges(
     const src = nodes[edge.sourceNodeId]
     const dst = nodes[edge.targetNodeId]
     if (!src || !dst) {
-      routed.push({ edgeId: edge.id, waypoints: [], srcSide: 'right', dstSide: 'left' })
+      routed.push({ edgeId: edge.id, waypoints: [], srcSide: 'right', dstSide: 'left', sourceNodeId: edge.sourceNodeId, targetNodeId: edge.targetNodeId })
       continue
     }
 
@@ -78,12 +78,12 @@ export function routeAllEdges(
         const p1 = sideCenter(src, srcSide)
         const p2 = sideCenter(dst, dstSide)
         const waypoints = simplifyPath(result.gridPath, p1, p2)
-        routed.push({ edgeId: edge.id, waypoints, srcSide, dstSide })
+        routed.push({ edgeId: edge.id, waypoints, srcSide, dstSide, sourceNodeId: edge.sourceNodeId, targetNodeId: edge.targetNodeId })
       } else {
         const { srcSide, dstSide } = bestSides(src, dst)
         const p1 = sideCenter(src, srcSide)
         const p2 = sideCenter(dst, dstSide)
-        routed.push({ edgeId: edge.id, waypoints: fallbackRoute(p1, srcSide, p2, dstSide), srcSide, dstSide })
+        routed.push({ edgeId: edge.id, waypoints: fallbackRoute(p1, srcSide, p2, dstSide), srcSide, dstSide, sourceNodeId: edge.sourceNodeId, targetNodeId: edge.targetNodeId })
       }
     } finally {
       reblockCells(grid, removedSrc)

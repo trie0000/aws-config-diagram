@@ -134,8 +134,9 @@ export function reduceCrossings(
     const beforeCross = edgeCrossings(idx, routed)
     if (beforeCross === 0) continue
 
-    const srcNode = findClosestNode(r.waypoints[0], nodes)
-    const dstNode = findClosestNode(r.waypoints[r.waypoints.length - 1], nodes)
+    // sourceNodeId/targetNodeId があれば正確なノードを参照、なければ fallback
+    const srcNode = (r.sourceNodeId && nodes[r.sourceNodeId]) || findClosestNode(r.waypoints[0], nodes)
+    const dstNode = (r.targetNodeId && nodes[r.targetNodeId]) || findClosestNode(r.waypoints[r.waypoints.length - 1], nodes)
     if (!srcNode || !dstNode) continue
 
     const srcRect = nodeIconRect(srcNode)

@@ -17,6 +17,9 @@ export interface RoutedEdge {
   waypoints: Point[]
   srcSide: Side
   dstSide: Side
+  /** 元のエッジのソース/ターゲットノードID（reduceCrossings で正確なノードを参照するため） */
+  sourceNodeId?: string
+  targetNodeId?: string
 }
 
 /** 障害物グリッド */
@@ -120,6 +123,7 @@ export function bestSides(src: DiagramNode, dst: DiagramNode): { srcSide: Side; 
     return dy > 0 ? { srcSide: 'bottom', dstSide: 'top' } : { srcSide: 'top', dstSide: 'bottom' }
   }
 }
+
 
 /** ウェイポイント配列 → SVG path d属性 */
 export function pointsToPath(points: Point[]): string {
