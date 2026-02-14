@@ -191,13 +191,17 @@ export function reduceCrossings(
 // ============================================================
 
 /** ポート間のオフセット（px） */
-const PORT_SPREAD = 12
+const PORT_SPREAD = 8
+
+/** ポート分散の最大範囲をアイコン辺の中央何%に制限するか（0.0〜1.0） */
+const PORT_MAX_RATIO = 0.5
 
 /**
  * 同じノードの同じ辺に接続する複数エッジの接続点を辺に沿って等間隔に分散。
  * src/dst を区別せず、同じ接続点座標のエッジを1グループとして扱う。
+ * 分散範囲はアイコン辺の中央 PORT_MAX_RATIO に制限し、端は使わない。
  */
-export function spreadPorts(routed: RoutedEdge[]): void {
+export function spreadPorts(routed: RoutedEdge[], nodes?: Record<string, DiagramNode>): void {
   if (routed.length < 2) return
 
   interface PortEntry {
@@ -205,6 +209,7 @@ export function spreadPorts(routed: RoutedEdge[]): void {
     end: 'src' | 'dst'
     side: Side
     targetCoord: number
+    nodeId: string
   }
 
   const portGroups = new Map<string, PortEntry[]>()
@@ -223,6 +228,7 @@ export function spreadPorts(routed: RoutedEdge[]): void {
       end: 'src',
       side: r.srcSide,
       targetCoord: (r.srcSide === 'left' || r.srcSide === 'right') ? dstPt.y : dstPt.x,
+      nodeId: r.sourceNodeId,
     })
 
     const dstGroupKey = `port:${Math.round(dstPt.x)}:${Math.round(dstPt.y)}`
@@ -232,6 +238,7 @@ export function spreadPorts(routed: RoutedEdge[]): void {
       end: 'dst',
       side: r.dstSide,
       targetCoord: (r.dstSide === 'left' || r.dstSide === 'right') ? srcPt.y : srcPt.x,
+      nodeId: r.targetNodeId,
     })
   }
 
@@ -240,9 +247,24 @@ export function spreadPorts(routed: RoutedEdge[]): void {
 
     entries.sort((a, b) => a.targetCoord - b.targetCoord)
 
+    // ノード情報からオフセット上限を計算（辺の中央 PORT_MAX_RATIO 以内）
+    let maxOffset = Infinity
+    if (nodes) {
+      const firstEntry = entries[0]
+      const node = nodes[firstEntry.nodeId]
+      if (node && !CONTAINER_TYPES.has(node.type)) {
+        const rect = nodeIconRect(node)
+        const isHoriz = (firstEntry.side === 'left' || firstEntry.side === 'right')
+        const edgeLen = isHoriz ? rect.h : rect.w
+        maxOffset = (edgeLen * PORT_MAX_RATIO) / 2
+      }
+    }
+
     const count = entries.length
     for (let rank = 0; rank < count; rank++) {
-      const offset = (rank - (count - 1) / 2) * PORT_SPREAD
+      let offset = (rank - (count - 1) / 2) * PORT_SPREAD
+      // アイコン辺の中央範囲にクランプ
+      offset = Math.max(-maxOffset, Math.min(maxOffset, offset))
       const entry = entries[rank]
       const r = routed[entry.edgeIdx]
       const wp = r.waypoints
