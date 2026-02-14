@@ -343,22 +343,43 @@ class DiagramStateConverter:
                 },
             )
 
-        # NAT Gateway
+        # NAT Gateway — 所属 Public Subnet の境界に配置
         nats = self.parser.get_nat_gateways_for_vpc(vpc_id)
         for nat in nats:
             nat_node_id = f"node-{nat['id']}"
+            nat_subnet_id = nat.get("subnet_id", "")
+            nat_subnet_node_id = f"node-{nat_subnet_id}" if nat_subnet_id else ""
+            # 所属 Subnet が存在すればその子に、なければ VPC 直下
+            nat_parent = nat_subnet_node_id if nat_subnet_node_id in state.nodes else vpc_node_id
             state.nodes[nat_node_id] = DiagramNode(
                 id=nat_node_id,
                 type="nat-gateway",
                 label=nat["name"],
-                parent_id=vpc_node_id,
+                parent_id=nat_parent,
                 metadata={
                     "awsResourceId": nat["id"],
                     "awsResourceType": "AWS::EC2::NatGateway",
-                    "subnetId": nat.get("subnet_id", ""),
+                    "subnetId": nat_subnet_id,
                     "publicIp": nat.get("public_ip", ""),
                 },
             )
+
+        # NAT Gateway 利用エッジ: Private Subnet → NAT Gateway
+        nat_usage = self.parser.get_nat_usage_map(vpc_id)
+        for nat_id, using_subnet_ids in nat_usage.items():
+            nat_node_id = f"node-{nat_id}"
+            if nat_node_id not in state.nodes:
+                continue
+            for sid in using_subnet_ids:
+                subnet_node_id = f"node-{sid}"
+                if subnet_node_id not in state.nodes:
+                    continue
+                self._add_edge(
+                    state, subnet_node_id, nat_node_id,
+                    edge_type="connection",
+                    label="→ NAT",
+                    metadata={"connectionType": "subnet→nat-gateway"},
+                )
 
         # ALB
         albs = self.parser.get_albs_for_vpc(vpc_id)

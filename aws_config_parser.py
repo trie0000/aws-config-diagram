@@ -882,6 +882,51 @@ class AWSConfigParser:
                 })
         return nats
 
+    def get_nat_usage_map(self, vpc_id):
+        """NAT Gateway ID → 利用 Subnet ID リストのマッピングを返す。
+
+        ルートテーブルの routes で natGatewayId を参照している Subnet を特定する。
+        戻り値: { "nat-xxx": ["subnet-aaa", "subnet-bbb"], ... }
+        """
+        nat_to_subnets: dict[str, list[str]] = {}
+
+        for item in self.by_type["AWS::EC2::RouteTable"]:
+            cfg = item.get("configuration", {})
+            if not isinstance(cfg, dict):
+                cfg = {}
+            rt_vpc = cfg.get("vpcId", "")
+            if not rt_vpc:
+                rt_vpc = self._get_related_vpc(item)
+            if rt_vpc != vpc_id:
+                continue
+
+            # ルートから natGatewayId を検出
+            routes = cfg.get("routes", cfg.get("routeSet", []))
+            nat_id = ""
+            for r in routes:
+                dest = r.get("destinationCidrBlock",
+                             r.get("destinationCidr", ""))
+                if dest == "0.0.0.0/0":
+                    n = r.get("natGatewayId", "")
+                    if n and n.startswith("nat-"):
+                        nat_id = n
+                        break
+
+            if not nat_id:
+                continue
+
+            # このルートテーブルに関連付けられた Subnet を収集
+            assocs = cfg.get("associations",
+                             cfg.get("routeTableAssociationSet", []))
+            for a in assocs:
+                sid = a.get("subnetId", "")
+                if sid:
+                    if nat_id not in nat_to_subnets:
+                        nat_to_subnets[nat_id] = []
+                    nat_to_subnets[nat_id].append(sid)
+
+        return nat_to_subnets
+
     def get_instances_for_subnet(self, subnet_id):
         instances = []
         for item in self.by_type["AWS::EC2::Instance"]:

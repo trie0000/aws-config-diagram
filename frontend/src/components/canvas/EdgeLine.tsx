@@ -60,7 +60,7 @@ export function EdgeLine({
         stroke={strokeColor}
         strokeWidth={strokeW}
         strokeDasharray={isDataFlow ? undefined : '6 3'}
-        markerEnd="url(#arrowhead)"
+        markerEnd={highlighted ? "url(#arrowhead-lg)" : "url(#arrowhead)"}
         style={{ pointerEvents: 'none' }}
       />
       {edge.label && (

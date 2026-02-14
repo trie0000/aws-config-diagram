@@ -269,6 +269,7 @@ class LayoutEngine:
                 children = [
                     n for n in state.nodes.values()
                     if n.parent_id == subnet_node.id
+                    and n.type != "nat-gateway"  # 境界配置のため行数から除外
                 ]
                 rows = max(1, (len(children) + ICON_COLS_PER_SUBNET - 1)
                            // ICON_COLS_PER_SUBNET)
@@ -351,17 +352,29 @@ class LayoutEngine:
             subnet_node.size.width = subnet_w
             subnet_node.size.height = subnet_h
 
-            # Subnet 内のリソースを接続関係順でフロー配置
+            # Subnet 内のリソースを分類
             children = [
-                n for n in state.nodes.values()
-                if n.parent_id == subnet_node.id
+                nd for nd in state.nodes.values()
+                if nd.parent_id == subnet_node.id
             ]
+            # NAT Gateway は通常フローから除外 → 境界配置
+            gw_nodes = [nd for nd in children if nd.type == "nat-gateway"]
+            normal_children = [nd for nd in children if nd.type != "nat-gateway"]
+
+            # 通常リソースを接続関係順でフロー配置
             self._layout_icons_flow(
-                state, children,
+                state, normal_children,
                 sx + SUBNET_PADDING,
                 sy + SUBNET_HEADER_H + SUBNET_PADDING,
                 subnet_w - 2 * SUBNET_PADDING,
             )
+
+            # NAT Gateway を Subnet 右端境界にまたがる位置に配置
+            for i, gw in enumerate(gw_nodes):
+                gw.size.width = VPC_SERVICE_ICON_W
+                gw.size.height = VPC_SERVICE_ICON_H
+                gw.position.x = sx + subnet_w - VPC_SERVICE_ICON_W // 2
+                gw.position.y = sy + SUBNET_HEADER_H + SUBNET_PADDING + i * (VPC_SERVICE_ICON_H + 8)
 
             sx += subnet_w + SUBNET_GAP
 
@@ -425,11 +438,16 @@ class LayoutEngine:
     def _layout_vpc_services(
         self, nodes: list, vpc_x: float, service_y: float, vpc_w: float,
     ) -> None:
-        """VPC直下のサービスノード（IGW, NAT, ALB等）をデータフロー順に配置
+        """VPC直下のサービスノード（IGW, ALB等）をデータフロー順に配置
 
         IGW: VPC左端境界（VPCの出入口を表現）
+        NAT Gateway: Subnet に所属する場合は _layout_subnets で境界配置されるため除外
         その他: VPC内上部にデータフロー順で横並び
         """
+        # NAT Gateway は Subnet 境界配置に移動したため除外
+        # （parent_id が VPC 直下のままの NAT GW は残す）
+        nodes = [n for n in nodes if n.type != "nat-gateway"]
+
         # データフロー順にソート
         nodes.sort(key=lambda n: VPC_SERVICE_ORDER.get(n.type, 99))
 
