@@ -8,15 +8,19 @@
  *   4. パスを簡略化（同方向セルをマージして折れ点のみ残す）
  *   5. 交差削減（交差エッジの代替ルートを試行）
  *   6. エッジナッジ（重なったセグメントを等間隔にオフセット）
- *   7. enforceEdgeRules — 全ルールの最終適用
- *   8. ポート分散（同じノード・同じ辺のエッジを均等配置）
+ *   7. ポート分散（同じノード・同じ辺のエッジを均等配置）
+ *   8. アイコン貫通防止
+ *   9. enforceEdgeRules — 全ルールの最終適用（R0直交/R1出口/R2到着/R3矢印）
  *
  * 実装は以下の3モジュールに分割:
  *   - edgeRouter.types.ts — 型定義・定数・共有ユーティリティ
  *   - edgeRouter.bfs.ts — グリッド構築・BFS探索・パス処理
  *   - edgeRouter.postprocess.ts — 交差削減・ポート分散・ナッジ
  *
- * Version: 6.4.0
+ * enforceEdgeRules の設計:
+ *   docs/design/ENFORCE_EDGE_RULES_ALGORITHM.md
+ *
+ * Version: 6.5.0
  * Last Updated: 2026-02-14
  */
 
@@ -101,18 +105,19 @@ export function routeAllEdges(
     }
   }
 
-  // 後処理: 交差削減 → エッジナッジ → ルール適用 → ポート分散
+  // 後処理パイプライン:
+  // 1. 交差削減 → エッジナッジ
   reduceCrossings(routed, nodes, grid)
   nudgeEdges(routed)
 
-  // 辺座標を確定
-  enforceEdgeRules(routed, nodes)
-
-  // 確定後にポート分散（辺座標が決まった後でないと均等配置できない）
+  // 2. ポート分散（同じノード・同じ辺のエッジを均等配置）
   spreadPorts(routed, nodes)
 
-  // アイコン貫通防止: 第三者ノードのアイコンを横切るセグメントを迂回
+  // 3. アイコン貫通防止
   deflectFromIcons(routed, nodes)
+
+  // 4. ルール最終適用（R0直交/R1出口/R2到着/R3矢印）
+  enforceEdgeRules(routed, nodes)
 
   return routed
 }
@@ -134,19 +139,80 @@ function removeDuplicateWaypoints(r: RoutedEdge): void {
 }
 
 // ============================================================
-// enforceEdgeRules — EDGE_ROUTING.md の3ルールを最終適用
+// enforceEdgeRules — R0直交/R1出口/R2到着/R3矢印 を最終適用
+// 設計書: docs/design/ENFORCE_EDGE_RULES_ALGORITHM.md
 // ============================================================
 
+/** R1/R2 違反時のエスケープ/アプローチ距離(px) */
+const ESCAPE_LEN = 20
+
+type NormalAxis = 'x' | 'y'
+
+/** srcSide/dstSide → 法線軸 */
+function normalAxis(side: Side): NormalAxis {
+  return (side === 'top' || side === 'bottom') ? 'y' : 'x'
+}
+
+/** R1 検査: firstNormalIdx の法線軸座標が法線方向にあるか */
+function isR1OK(side: Side, ptNormal: number, normalValue: number): boolean {
+  switch (side) {
+    case 'bottom': return ptNormal > normalValue
+    case 'top':    return ptNormal < normalValue
+    case 'right':  return ptNormal > normalValue
+    case 'left':   return ptNormal < normalValue
+  }
+}
+
+/** R2 検査: lastNormalIdx の法線軸座標が到着方向側にあるか */
+function isR2OK(side: Side, ptNormal: number, normalValue: number): boolean {
+  // R2: dstSide='top' → 上から到着 → lastNormalIdx は normalValue より小さい
+  switch (side) {
+    case 'top':    return ptNormal < normalValue
+    case 'bottom': return ptNormal > normalValue
+    case 'left':   return ptNormal < normalValue
+    case 'right':  return ptNormal > normalValue
+  }
+}
+
+/** escapePt を計算: wp[0] から法線方向に ESCAPE_LEN 離れた点 */
+function computeEscapePt(origin: { x: number; y: number }, side: Side): { x: number; y: number } {
+  switch (side) {
+    case 'bottom': return { x: origin.x, y: origin.y + ESCAPE_LEN }
+    case 'top':    return { x: origin.x, y: origin.y - ESCAPE_LEN }
+    case 'right':  return { x: origin.x + ESCAPE_LEN, y: origin.y }
+    case 'left':   return { x: origin.x - ESCAPE_LEN, y: origin.y }
+  }
+}
+
+/** approachPt を計算: wp[last] から到着方向（法線の反対）に APPROACH_LEN 離れた点 */
+function computeApproachPt(origin: { x: number; y: number }, side: Side): { x: number; y: number } {
+  // dstSide='top' → 上から到着 → approachPt は上方向(y-)
+  switch (side) {
+    case 'top':    return { x: origin.x, y: origin.y - ESCAPE_LEN }
+    case 'bottom': return { x: origin.x, y: origin.y + ESCAPE_LEN }
+    case 'left':   return { x: origin.x - ESCAPE_LEN, y: origin.y }
+    case 'right':  return { x: origin.x + ESCAPE_LEN, y: origin.y }
+  }
+}
+
+/** 2点間の L字角を計算 */
+function lShapeJoin(from: { x: number; y: number }, to: { x: number; y: number }, nAxis: NormalAxis): { x: number; y: number } {
+  // 法線軸がy → escapePt(法線=y方向) からtoへ → まず水平に合わせてから垂直
+  return nAxis === 'y'
+    ? { x: to.x, y: from.y }
+    : { x: from.x, y: to.y }
+}
+
+/** 2つの点が同一座標か(1px以内) */
+function ptEq(a: { x: number; y: number }, b: { x: number; y: number }): boolean {
+  return Math.abs(a.x - b.x) <= 1 && Math.abs(a.y - b.y) <= 1
+}
+
 /**
- * 全 RoutedEdge に対して以下のルールを適用する:
+ * 全 RoutedEdge に対してルールを適用する。
  *
- * 1. 出口方向の一致: 始点の辺と最初のセグメント方向を一致させる
- * 2. 到着方向の一致: 終点の辺と最後のセグメント方向を一致させる
- * 3. 出入り分離: spreadPorts のオフセットを保持する（辺方向の座標は維持）
- *
- * 後処理（spreadPorts/nudgeEdges）の結果を尊重しつつ、
- * 辺に垂直な座標（= 辺のどこから出るか）はそのまま保持し、
- * 辺に平行な座標（= 辺のどの面から出るか）のみ正しい辺に揃える。
+ * 核心方針: srcSide/dstSide を変更しない。辺を固定してパスを修正する。
+ * コンテナ専用分岐なし（アイコンと同じロジック）。
  */
 function enforceEdgeRules(
   routed: RoutedEdge[],
@@ -158,262 +224,231 @@ function enforceEdgeRules(
     const dst = nodes[r.targetNodeId]
     if (!src || !dst) continue
 
-    // 連続する重複ウェイポイントを除去
     removeDuplicateWaypoints(r)
-
-    // --- 始点の修正 ---
-    enforceStart(r, src, dst)
-
-    // --- 終点の修正 ---
-    enforceEnd(r, src, dst)
+    enforceStart(r, src)
+    enforceEnd(r, dst)
+    removeDuplicateWaypoints(r)
   }
 }
 
 /**
- * 始点を修正。
- * 最初のセグメント方向から正しい出口辺を決定し、辺座標に揃える。
- * spreadPorts のオフセット（辺に沿った方向）は保持する。
+ * 端点座標をrectの指定辺に投影する（spreadPortsオフセットを保持）
  */
-function enforceStart(r: RoutedEdge, src: DiagramNode, dst: DiagramNode): void {
+function snapToEdge(
+  rect: { x: number; y: number; w: number; h: number },
+  side: Side,
+  pt: { x: number; y: number },
+): { x: number; y: number } {
+  switch (side) {
+    case 'top':    return { x: clampX(pt.x, rect), y: rect.y }
+    case 'bottom': return { x: clampX(pt.x, rect), y: rect.y + rect.h }
+    case 'left':   return { x: rect.x, y: clampY(pt.y, rect) }
+    case 'right':  return { x: rect.x + rect.w, y: clampY(pt.y, rect) }
+  }
+}
+
+/** x座標をrect内にクランプ */
+function clampX(x: number, rect: { x: number; w: number }): number {
+  return Math.max(rect.x, Math.min(x, rect.x + rect.w))
+}
+/** y座標をrect内にクランプ */
+function clampY(y: number, rect: { y: number; h: number }): number {
+  return Math.max(rect.y, Math.min(y, rect.y + rect.h))
+}
+
+/**
+ * enforceStart: 始点をR0/R1準拠にする。
+ *
+ * 1. wp[0] を srcSide の辺面にスナップ
+ * 2. 法線方向に離れる最初の点 (firstNormalIdx) を探す
+ * 3. R1検査 → 6a(OK) or 6b(violation)
+ */
+function enforceStart(r: RoutedEdge, src: DiagramNode): void {
   const wp = r.waypoints
   if (wp.length < 2) return
 
-  const srcIsContainer = CONTAINER_TYPES.has(src.type)
+  const srcRect = nodeIconRect(src)
+  const side = r.srcSide
+  const nAxis = normalAxis(side)
 
-  // コンテナ: directionToTarget で辺決定 → L字パスに再構築
-  if (srcIsContainer) {
-    const correctSide = directionToTarget(nodeIconRect(src), nodeIconRect(dst))
-    const correctP = sideCenter(src, correctSide)
-    const lastPt = wp[wp.length - 1]
-    const isHoriz = (correctSide === 'left' || correctSide === 'right')
-    r.srcSide = correctSide
-    if (isHoriz) {
-      r.waypoints = [correctP, { x: lastPt.x, y: correctP.y }, lastPt]
-    } else {
-      r.waypoints = [correctP, { x: correctP.x, y: lastPt.y }, lastPt]
-    }
-    return
-  }
+  // 1. snap wp[0]
+  wp[0] = snapToEdge(srcRect, side, wp[0])
+  const normalValue = wp[0][nAxis]
 
-  // アイコンノード: 最初のセグメント方向から正しい辺を逆算
-  // wp[0]==wp[1] の場合は次の異なる点を探す
-  const p0 = wp[0]
-  let p1 = wp[1]
+  // 2. firstNormalIdx: 法線軸に1px以上離れる最初のWP
+  let firstNormalIdx = -1
   for (let i = 1; i < wp.length; i++) {
-    if (Math.abs(wp[i].x - p0.x) > 1 || Math.abs(wp[i].y - p0.y) > 1) {
-      p1 = wp[i]
+    if (Math.abs(wp[i][nAxis] - normalValue) > 1) {
+      firstNormalIdx = i
       break
     }
   }
-  const dx = p1.x - p0.x
-  const dy = p1.y - p0.y
+  if (firstNormalIdx < 0) return // パスが辺面平行のみ → 何もしない
 
-  const rect = nodeIconRect(src)
+  // 3. R1検査
+  if (isR1OK(side, wp[firstNormalIdx][nAxis], normalValue)) {
+    // 6a: R1を満たす — 直交揃え
+    const prevPt = wp[firstNormalIdx - 1]
+    const parallelAxis: NormalAxis = nAxis === 'y' ? 'x' : 'y'
 
-  let correctSide: Side
-  if (Math.abs(dx) > Math.abs(dy)) {
-    correctSide = dx > 0 ? 'right' : 'left'
-  } else if (Math.abs(dy) > Math.abs(dx)) {
-    correctSide = dy > 0 ? 'bottom' : 'top'
-  } else {
-    return
-  }
+    wp[firstNormalIdx] = { ...wp[firstNormalIdx], [parallelAxis]: prevPt[parallelAxis] }
 
-  // 逆方向チェック: BFS の最初のセグメント方向と、実際の始点位置が矛盾している場合を検出。
-  // 例: 始点が bottom辺 (y=192.4) にあるのに correctSide='top'（上に向かう）
-  //     → パスがアイコンを突き抜けている。
-  const SIDE_TOLERANCE = 3  // 辺判定の許容誤差
-  const goesOpposite = (() => {
-    // 始点が実際にどの辺にあるかを座標から判定
-    const atTop = Math.abs(p0.y - rect.y) < SIDE_TOLERANCE
-    const atBottom = Math.abs(p0.y - (rect.y + rect.h)) < SIDE_TOLERANCE
-    const atLeft = Math.abs(p0.x - rect.x) < SIDE_TOLERANCE
-    const atRight = Math.abs(p0.x - (rect.x + rect.w)) < SIDE_TOLERANCE
-
-    // 始点がある辺と correctSide が矛盾する場合
-    if (correctSide === 'top' && atBottom) return true   // bottom辺から出て上に向かう
-    if (correctSide === 'bottom' && atTop) return true   // top辺から出て下に向かう
-    if (correctSide === 'left' && atRight) return true   // right辺から出て左に向かう
-    if (correctSide === 'right' && atLeft) return true   // left辺から出て右に向かう
-    return false
-  })()
-
-  if (goesOpposite) {
-    // BFS の最初のセグメントがアイコン内部に向かっている（逆方向）。
-    // パスの2番目以降の方向変化を見て、本来の進行方向を推測する。
-    // 例: bottom→UP→LEFT の場合、LEFT が本来の方向 → left辺を使う。
-    let betterSide: Side | null = null
-
-    // パスの折れ点を走査し、最初の水平/垂直方向変化を見つける
-    for (let i = 1; i < wp.length - 1; i++) {
-      const cur = wp[i]
-      const next = wp[i + 1]
-      const sdx = next.x - cur.x
-      const sdy = next.y - cur.y
-      if (Math.abs(sdx) > 1 || Math.abs(sdy) > 1) {
-        if (Math.abs(sdx) > Math.abs(sdy)) {
-          betterSide = sdx > 0 ? 'right' : 'left'
-        } else {
-          betterSide = sdy > 0 ? 'bottom' : 'top'
+    // 次セグメントが斜めになるリスクをチェック
+    if (firstNormalIdx + 1 < wp.length) {
+      const next = wp[firstNormalIdx + 1]
+      const cur = wp[firstNormalIdx]
+      const dx = Math.abs(cur.x - next.x)
+      const dy = Math.abs(cur.y - next.y)
+      if (dx > 1 && dy > 1) {
+        // 斜め → L字中継点を挿入
+        const relay = nAxis === 'y'
+          ? { x: cur.x, y: next.y }
+          : { x: next.x, y: cur.y }
+        if (!ptEq(relay, cur) && !ptEq(relay, next)) {
+          wp.splice(firstNormalIdx + 1, 0, relay)
         }
+      }
+    }
+  } else {
+    // 6b: R1違反 — escape パス構築
+    const escapePt = computeEscapePt(wp[0], side)
+
+    // 合流先を探す: firstNormalIdx 以降で L字接続可能な点
+    let k = wp.length - 1 // デフォルトは終点
+    for (let i = firstNormalIdx; i < wp.length; i++) {
+      // escapePt と wp[i] が少なくとも1軸で近い = L字で繋がる
+      if (Math.abs(escapePt.x - wp[i].x) <= 1 || Math.abs(escapePt.y - wp[i].y) <= 1) {
+        k = i
         break
       }
     }
+    // 見つからない場合は終点を使う（上のデフォルト）
 
-    // 折れ点が見つからない場合は bestSides で決定
-    if (!betterSide) {
-      betterSide = bestSides(src, dst).srcSide
+    const joinPt = lShapeJoin(escapePt, wp[k], nAxis)
+
+    // wp[1..k-1] を [escapePt, joinPt] に置換
+    const newSegment: Array<{ x: number; y: number }> = [escapePt]
+    if (!ptEq(joinPt, escapePt) && !ptEq(joinPt, wp[k])) {
+      newSegment.push(joinPt)
     }
-
-    const betterP = sideCenter(src, betterSide)
-    const lastPt = wp[wp.length - 1]
-    const isH = (betterSide === 'left' || betterSide === 'right')
-    r.srcSide = betterSide
-    if (isH) {
-      r.waypoints = [betterP, { x: lastPt.x, y: betterP.y }, lastPt]
-    } else {
-      r.waypoints = [betterP, { x: betterP.x, y: lastPt.y }, lastPt]
-    }
-    return
+    wp.splice(1, k - 1, ...newSegment)
   }
-
-  const isHoriz = (correctSide === 'left' || correctSide === 'right')
-
-  // 辺に垂直な座標 = 辺面の位置（固定）
-  // 辺に平行な座標 = spreadPorts のオフセットを保持
-  if (isHoriz) {
-    // 水平辺(left/right): x は辺の位置に固定、y は現在値を保持（出入り分離）
-    const edgeX = correctSide === 'right' ? rect.x + rect.w : rect.x
-    wp[0] = { x: edgeX, y: p0.y }
-    // 2番目の点の y を始点に揃える（水平に出る）
-    wp[1] = { x: wp[1].x, y: p0.y }
-  } else {
-    // 垂直辺(top/bottom): y は辺の位置に固定、x は現在値を保持（出入り分離）
-    const edgeY = correctSide === 'bottom' ? rect.y + rect.h : rect.y
-    wp[0] = { x: p0.x, y: edgeY }
-    // 2番目の点の x を始点に揃える（垂直に出る）
-    wp[1] = { x: p0.x, y: wp[1].y }
-  }
-  r.srcSide = correctSide
 }
 
 /**
- * 終点を修正。
- * 最後のセグメント方向から正しい到着辺を決定し、辺座標に揃える。
- * spreadPorts のオフセット（辺に沿った方向）は保持する。
+ * enforceEnd: 終点をR0/R2/R3準拠にする。
+ *
+ * 1. wp[last] を dstSide の辺面にスナップ
+ * 2. 法線方向から到着する最後の点 (lastNormalIdx) を探す
+ * 3. R2検査 → 6a(OK) or 6b(violation)
+ * 4. ensureFinalSegment (R3)
  */
-function enforceEnd(r: RoutedEdge, src: DiagramNode, dst: DiagramNode): void {
+function enforceEnd(r: RoutedEdge, dst: DiagramNode): void {
   const wp = r.waypoints
   if (wp.length < 2) return
 
-  const dstIsContainer = CONTAINER_TYPES.has(dst.type)
-
-  // コンテナ: directionToTarget で辺決定 → L字パスに再構築
-  if (dstIsContainer) {
-    const correctSide = directionToTarget(nodeIconRect(dst), nodeIconRect(src))
-    const correctP = sideCenter(dst, correctSide)
-    const firstPt = wp[0]
-    const isHoriz = (correctSide === 'left' || correctSide === 'right')
-    r.dstSide = correctSide
-    if (isHoriz) {
-      r.waypoints = [firstPt, { x: firstPt.x, y: correctP.y }, correctP]
-    } else {
-      r.waypoints = [firstPt, { x: correctP.x, y: firstPt.y }, correctP]
-    }
-    return
-  }
-
-  // アイコンノード: 最後のセグメント方向から正しい到着辺を逆算
-  // pEnd==pPrev の場合はさらに前の異なる点を探す
+  const dstRect = nodeIconRect(dst)
+  const side = r.dstSide
+  const nAxis = normalAxis(side)
   const last = wp.length - 1
-  const pEnd = wp[last]
-  let pPrev = wp[last - 1]
+
+  // 1. snap wp[last]
+  wp[last] = snapToEdge(dstRect, side, wp[last])
+  const normalValue = wp[last][nAxis]
+
+  // 2. lastNormalIdx: 法線軸に1px以上離れる最後のWP（逆方向走査）
+  let lastNormalIdx = -1
   for (let i = last - 1; i >= 0; i--) {
-    if (Math.abs(wp[i].x - pEnd.x) > 1 || Math.abs(wp[i].y - pEnd.y) > 1) {
-      pPrev = wp[i]
+    if (Math.abs(wp[i][nAxis] - normalValue) > 1) {
+      lastNormalIdx = i
       break
     }
   }
-  const dx = pEnd.x - pPrev.x
-  const dy = pEnd.y - pPrev.y
+  if (lastNormalIdx < 0) return // パスが辺面平行のみ → 何もしない
 
-  const rect = nodeIconRect(dst)
+  // 3. R2検査
+  if (isR2OK(side, wp[lastNormalIdx][nAxis], normalValue)) {
+    // 6a: R2を満たす — 直交揃え
+    const nextPt = wp[lastNormalIdx + 1]
+    const parallelAxis: NormalAxis = nAxis === 'y' ? 'x' : 'y'
 
-  // 右から来る(dx>0) → 左辺に到着、下から来る(dy>0) → 上辺に到着
-  let correctSide: Side
-  if (Math.abs(dx) > Math.abs(dy)) {
-    correctSide = dx > 0 ? 'left' : 'right'
-  } else if (Math.abs(dy) > Math.abs(dx)) {
-    correctSide = dy > 0 ? 'top' : 'bottom'
-  } else {
-    return
-  }
+    // lastNormalIdx == 0 の場合は wp[0] を保護（enforceStart の修正を壊さない）
+    if (lastNormalIdx > 0) {
+      wp[lastNormalIdx] = { ...wp[lastNormalIdx], [parallelAxis]: nextPt[parallelAxis] }
 
-  // 逆方向チェック: 終点位置と到着方向が矛盾している場合を検出。
-  const SIDE_TOLERANCE_END = 3
-  const goesOpposite = (() => {
-    const atTop = Math.abs(pEnd.y - rect.y) < SIDE_TOLERANCE_END
-    const atBottom = Math.abs(pEnd.y - (rect.y + rect.h)) < SIDE_TOLERANCE_END
-    const atLeft = Math.abs(pEnd.x - rect.x) < SIDE_TOLERANCE_END
-    const atRight = Math.abs(pEnd.x - (rect.x + rect.w)) < SIDE_TOLERANCE_END
-
-    if (correctSide === 'top' && atBottom) return true
-    if (correctSide === 'bottom' && atTop) return true
-    if (correctSide === 'left' && atRight) return true
-    if (correctSide === 'right' && atLeft) return true
-    return false
-  })()
-
-  if (goesOpposite) {
-    // パスの末尾近くの折れ点から本来の到着方向を推測する
-    let betterSide: Side | null = null
-    for (let i = last - 1; i > 0; i--) {
-      const prev = wp[i - 1]
-      const cur = wp[i]
-      const sdx = cur.x - prev.x
-      const sdy = cur.y - prev.y
-      if (Math.abs(sdx) > 1 || Math.abs(sdy) > 1) {
-        // 到着方向: 右に来る→left辺、下に来る→top辺
-        if (Math.abs(sdx) > Math.abs(sdy)) {
-          betterSide = sdx > 0 ? 'left' : 'right'
-        } else {
-          betterSide = sdy > 0 ? 'top' : 'bottom'
+      // 前セグメントが斜めになるリスクをチェック
+      if (lastNormalIdx - 1 >= 0 && lastNormalIdx - 1 !== 0) {
+        const prev = wp[lastNormalIdx - 1]
+        const cur = wp[lastNormalIdx]
+        const dx = Math.abs(prev.x - cur.x)
+        const dy = Math.abs(prev.y - cur.y)
+        if (dx > 1 && dy > 1) {
+          // 斜め → L字中継点を挿入
+          const relay = nAxis === 'y'
+            ? { x: cur.x, y: prev.y }
+            : { x: prev.x, y: cur.y }
+          if (!ptEq(relay, prev) && !ptEq(relay, cur)) {
+            wp.splice(lastNormalIdx, 0, relay)
+          }
         }
+      }
+    }
+  } else {
+    // 6b: R2違反 — approach パス構築
+    const curLast = wp.length - 1
+    const approachPt = computeApproachPt(wp[curLast], side)
+
+    // 合流元を探す: lastNormalIdx から 1 へ走査（wp[0]はenforceStart保護）
+    let k = Math.min(1, curLast) // デフォルトはwp[1]（enforceStartの修正を保護）
+    for (let i = lastNormalIdx; i >= 1; i--) {
+      if (Math.abs(approachPt.x - wp[i].x) <= 1 || Math.abs(approachPt.y - wp[i].y) <= 1) {
+        k = i
         break
       }
     }
-    if (!betterSide) {
-      betterSide = bestSides(src, dst).dstSide
-    }
 
-    const betterP = sideCenter(dst, betterSide)
-    const firstPt = wp[0]
-    const isH = (betterSide === 'left' || betterSide === 'right')
-    r.dstSide = betterSide
-    if (isH) {
-      r.waypoints = [firstPt, { x: firstPt.x, y: betterP.y }, betterP]
-    } else {
-      r.waypoints = [firstPt, { x: betterP.x, y: firstPt.y }, betterP]
+    const joinPt = lShapeJoin(approachPt, wp[k], nAxis)
+
+    // wp[k+1..curLast-1] を [joinPt, approachPt] に置換
+    const newSegment: Array<{ x: number; y: number }> = []
+    if (!ptEq(joinPt, wp[k]) && !ptEq(joinPt, approachPt)) {
+      newSegment.push(joinPt)
     }
-    return
+    newSegment.push(approachPt)
+    wp.splice(k + 1, curLast - 1 - k, ...newSegment)
   }
 
-  const isHoriz = (correctSide === 'left' || correctSide === 'right')
+  // 4. ensureFinalSegment (R3): 最終セグメントが法線方向を向くことを保証
+  ensureFinalSegment(wp, nAxis)
+}
 
-  if (isHoriz) {
-    const edgeX = correctSide === 'left' ? rect.x : rect.x + rect.w
-    wp[last] = { x: edgeX, y: pEnd.y }
-    // last-1 が始点(0)の場合は上書きしない（enforceStart の修正を保護）
-    if (last - 1 > 0) {
-      wp[last - 1] = { x: wp[last - 1].x, y: pEnd.y }
-    }
-  } else {
-    const edgeY = correctSide === 'top' ? rect.y : rect.y + rect.h
-    wp[last] = { x: pEnd.x, y: edgeY }
-    // last-1 が始点(0)の場合は上書きしない（enforceStart の修正を保護）
-    if (last - 1 > 0) {
-      wp[last - 1] = { x: pEnd.x, y: wp[last - 1].y }
-    }
+/**
+ * ensureFinalSegment: 最終セグメントが dstSide の法線方向を向くようにする。
+ *
+ * spreadPorts の中継WP（辺面上の移動）により最終セグメントが辺面平行になるケースを修正。
+ * wp[last-1] を除去し、斜めになるなら L字中継を挿入。
+ */
+function ensureFinalSegment(wp: Array<{ x: number; y: number }>, nAxis: NormalAxis): void {
+  let last = wp.length - 1
+  if (last < 2) return // 2点パスは対処不要
+
+  // 最終セグメントの法線軸変位
+  const normalDelta = Math.abs(wp[last][nAxis] - wp[last - 1][nAxis])
+  if (normalDelta > 1) return // 既に法線方向 → OK
+
+  // 最終セグメントが辺面平行 → wp[last-1] を除去
+  wp.splice(last - 1, 1)
+  last = wp.length - 1
+  if (last < 1) return
+
+  // 除去後、wp[last-1]→wp[last] が斜めか検査
+  const dx = Math.abs(wp[last - 1].x - wp[last].x)
+  const dy = Math.abs(wp[last - 1].y - wp[last].y)
+  if (dx > 1 && dy > 1) {
+    // 斜め → L字中継点を wp[last] の直前に挿入
+    const relay = nAxis === 'y'
+      ? { x: wp[last].x, y: wp[last - 1].y }
+      : { x: wp[last - 1].x, y: wp[last].y }
+    wp.splice(last, 0, relay)
   }
-  r.dstSide = correctSide
 }

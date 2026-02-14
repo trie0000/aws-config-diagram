@@ -139,7 +139,7 @@ dst の場合: グリッドが右に行く(dx>0) → dstSide='left'（右から�
 ### 2. 後処理パイプライン
 
 ```
-reduceCrossings → nudgeEdges → enforceEdgeRules → spreadPorts → deflectFromIcons
+reduceCrossings → nudgeEdges → spreadPorts → deflectFromIcons → enforceEdgeRules
 ```
 
 #### reduceCrossings（edgeRouter.postprocess.ts）
@@ -150,41 +150,7 @@ reduceCrossings → nudgeEdges → enforceEdgeRules → spreadPorts → deflectF
 #### nudgeEdges（edgeRouter.postprocess.ts）
 同一線上を通る複数エッジのセグメントを等間隔にオフセット（NUDGE_STEP=10px）。
 
-### 3. enforceEdgeRules（edgeRouter.ts）
-
-nudgeEdges の完了後に、全エッジに対して3ルールを最終適用する。
-
-#### 前処理: removeDuplicateWaypoints
-連続する重複ウェイポイント（距離1px以内）を除去する。`simplifyPath` が始点/終点に同一座標を生成する場合がある。
-
-#### enforceStart（始点修正）
-
-**アイコンノード:**
-1. 最初のセグメント方向 (dx, dy) を確認（wp[0]==wp[1] の場合は次の異なる点を探す）
-2. 方向から正しい srcSide を逆算（右に行く → right、下に行く → bottom 等）
-3. **逆方向検出**: 始点座標が辺Aにあるのに correctSide が辺B（反対辺）の場合、パスがアイコンを突き抜けている。パスの2番目以降の方向変化から本来の進行方向を推測し、L字パスに再構築する。
-   - 例: bottom辺から出て上に行く(correctSide='top') → 2番目のセグメントが左に行く → `left`辺から出るL字パスに再構築
-4. 逆方向でない場合: 辺に垂直な座標を辺面に固定、辺に平行な座標（spreadPorts オフセット）は保持
-5. 2番目のウェイポイントも辺方向に揃える
-
-**コンテナノード:**
-1. `directionToTarget()` で正しい出口辺を決定
-2. `sideCenter()` で出口座標を取得
-3. ウェイポイント全体を L 字パスに再構築: `[出口点, 中継点, 終点]`
-
-#### enforceEnd（終点修正）
-
-**アイコンノード:**
-1. 最後のセグメント方向から到着辺を逆算（pEnd==pPrev の場合はさらに前の異なる点を探す）
-2. **逆方向検出**: 終点座標が辺Aにあるのに correctSide が辺B（反対辺）の場合、パスの末尾近くの折れ点から本来の到着方向を推測し、L字パスに再構築する。
-3. 逆方向でない場合: 辺に垂直な座標を辺面に固定
-4. `wp[last-1]` が始点 (index 0) の場合は上書きしない（enforceStart の修正を保護）
-
-**コンテナノード:**
-1. `directionToTarget()` で到着辺を決定
-2. L 字パスに再構築: `[始点, 中継点, 到着点]`
-
-### 4. spreadPorts（edgeRouter.postprocess.ts）
+### 3. spreadPorts（edgeRouter.postprocess.ts）
 
 enforceEdgeRules で辺座標が確定した後に、同じノード・同じ辺に接続する**全エッジ**（出る線・入る線を区別しない）の接続点を均等に分散する。
 
@@ -222,7 +188,26 @@ spreadPorts の後に実行。全エッジの全セグメントを走査し、�
 
 **再帰チェック**: 挿入した迂回セグメント自体が別のアイコンを貫通する可能性があるため、同じインデックスで再チェックする（maxIter=200で無限ループ防止）。
 
-### 6. 描画（EdgeLine.tsx）
+### 6. enforceEdgeRules（edgeRouter.ts）— 最終ルール適用
+
+パイプラインの**最後**に実行。上流（BFS〜deflectFromIcons）が生成したウェイポイント列に対して、R0〜R3の全ルールを最終適用する「最終防衛線」。
+
+**核心方針**: srcSide/dstSide を変更しない。辺を固定してパスを修正する。コンテナ専用分岐なし（アイコンと同じロジック）。
+
+詳細アルゴリズム: `docs/design/ENFORCE_EDGE_RULES_ALGORITHM.md`
+
+#### enforceStart（始点修正 — R0/R1）
+1. wp[0] を srcSide の辺面にスナップ
+2. 「法線方向に離れる最初の点」(firstNormalIdx) を探す（spreadPorts 中継WPをスキップ）
+3. R1検査 → OK: 直交揃え / NG: escape パス構築（法線方向20px離脱→L字合流）
+
+#### enforceEnd（終点修正 — R0/R2/R3）
+1. wp[last] を dstSide の辺面にスナップ
+2. 「法線方向から到着する最後の点」(lastNormalIdx) を逆方向走査
+3. R2検査 → OK: 直交揃え / NG: approach パス構築
+4. ensureFinalSegment: 最終セグメントが法線方向を向くことを保証（R3）
+
+### 7. 描画（EdgeLine.tsx）
 
 EdgeLine.tsx は描画のみ担当。ルール適用は一切行わない。`routedEdge.waypoints` をそのまま `pointsToPath` で SVG パスに変換する。
 
@@ -259,11 +244,11 @@ EdgeLine.tsx は描画のみ担当。ルール適用は一切行わない。`rou
 ### simplifyPath による重複ウェイポイント
 `simplifyPath` がグリッドパスを折れ点に簡略化する際、始点/終点が同一座標になることがある。`removeDuplicateWaypoints` で除去し、`enforceStart`/`enforceEnd` は次の異なる点を探して方向を判定する。
 
-### 2点ウェイポイントの enforceEnd 競合
-ウェイポイントが2点のみの場合、`enforceEnd` が `wp[last-1]`（= wp[0]）を変更すると `enforceStart` の修正が上書きされる。`enforceEnd` は `last-1 == 0` の場合 `wp[0]` を変更しないことで保護する。
+### enforceStart/enforceEnd の競合防止
+`enforceEnd` の 6b（approach パス構築）は wp[0]〜wp[1] を保護して enforceStart の修正を壊さない。6a の直交揃えも lastNormalIdx==0 の場合は wp[0] を変更しない。
 
 ### BFS のアイコン突き抜けパス
-BFS が中心→中心で探索するため、小さいアイコンノードでは始点がbottom辺にあるのにパスがアイコンを上方向に突き抜けるケースがある。`enforceStart`/`enforceEnd` の逆方向検出がこれを捕捉し、パスの2番目以降の方向変化から本来の進行方向を推測してL字パスに再構築する。
+BFS が中心→中心で探索するため、srcSide と実際のパス方向が逆になるケースがある。`enforceStart`/`enforceEnd` が R1/R2 違反を検出し、escape/approach パス（法線方向20px離脱→L字合流）で矯正する。
 
 ### BFS グリッド解像度
 GRID_SIZE=20px のため、アイコン矩形の正確な辺座標とグリッドセル座標にずれがある。簡略化後のウェイポイントは `sideCenter()` の座標に置換されるが、中間折れ点はグリッド座標のまま。

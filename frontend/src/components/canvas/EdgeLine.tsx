@@ -51,7 +51,13 @@ export function EdgeLine({
   const labelPt = waypoints[midIdx] ?? waypoints[0]
 
   return (
-    <g style={{ cursor: 'pointer' }} onClick={(e) => onEdgeClick(e, edge.id)}>
+    <g
+      style={{ cursor: 'pointer' }}
+      onClick={(e) => onEdgeClick(e, edge.id)}
+      data-edge-id={edge.id}
+      data-src-side={routedEdge?.srcSide ?? ''}
+      data-dst-side={routedEdge?.dstSide ?? ''}
+    >
       {/* 透明な太いヒットエリア（クリックしやすくする） */}
       <path
         d={pathD}
