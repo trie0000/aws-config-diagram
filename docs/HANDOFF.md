@@ -1,41 +1,43 @@
 # HANDOFF.md - セッション引き継ぎ
 
-> 最終更新: 2026-02-14 セッション15 (spreadPorts v2 — 均等ポート分散)
+> 最終更新: 2026-02-14 セッション16 (spreadPorts v2.1 — 1本中央配置 + src/dst統合)
 
 ## 現在の状態
 
-**edgeRouter v6.3.0 完了**。spreadPorts を全面再設計し、同じノード・同じ辺に接続する複数エッジの接続点を均等に分散する。パイプライン順序を変更し、spreadPorts を最後に実行。realistic_aws_config.json で全エッジの均等配置を検証済み。
+**edgeRouter v6.3.1 完了**。spreadPorts の2つのバグを修正:
+1. 1本のエッジでもスキップせず辺の中央に配置（enforceEdgeRulesが非中央座標を設定するケースに対応）
+2. src/dstを区別せず同じノード・同じ辺の全エッジを1グループとして分散
 
-## 完了済み（セッション15: spreadPorts v2 均等ポート分散）
+## 完了済み（セッション16: spreadPorts v2.1）
 
-### spreadPorts v2 — 均等ポート分散
+### spreadPorts v2.1 — 1本中央配置 + src/dst統合
 
-- [x] spreadPorts グルーピングを座標ベース→ `nodeId:side` に変更
-  - 旧: `port:${Math.round(x)}:${Math.round(y)}` — enforceEdgeRules 後の座標変更でグループが崩壊
-  - 新: `${nodeId}:${side}` — ノードと辺で確実にグルーピング
-- [x] nodeId に `:` を含むケース（AWS ARN）対応: `lastIndexOf(':')` で分割
-- [x] 相対オフセット→絶対座標設定に変更
-  - 旧: `pt.x += offset` — enforceEdgeRules が非中心座標を設定した場合にずれる
-  - 新: `pt.x = centerCoord + offset` — 常にアイコン辺の中心基準で配置
-- [x] PORT_RANGE_RATIO=0.6 — アイコン辺の中央60%を使用範囲として均等配置
-- [x] パイプライン順序変更: reduceCrossings → nudgeEdges → enforceEdgeRules → spreadPorts
-  - spreadPorts を最後に実行（辺座標確定後に分散する）
-- [x] EDGE_ROUTING.md 更新（新 spreadPorts 設計の記載）
+- [x] `entries.length < 2` のスキップ条件を削除 — 1本でも辺の中央に配置
+  - 問題: enforceEdgeRulesが設定した非中央座標（例: x=565）がそのまま残っていた
+  - 修正後: spreadPorts が1本でも centerCoord（例: x=560）に補正する
+- [x] `routed.length < 2` ガードを `routed.length === 0` に変更
+- [x] sourceNodeId/targetNodeId の null チェック追加
+- [x] EDGE_ROUTING.md の spreadPorts セクション更新（1本ルール・src/dst統合ルール明記）
 - [x] realistic_aws_config.json で全エッジ検証済み
-  - EC2 (w=41.6): 2本接続 → ±12.48px（期待値と一致）
-  - ALB/Aurora (w=36.4): 2本接続 → ±10.92px（期待値と一致）
+  - app2:top 1本 → x=560.0（center、修正前は565）
+  - 全ノードの全辺で正しい座標を確認
+
+### セッション15で完了済み
+
+- [x] spreadPorts v2: nodeId:side グルーピング + 絶対座標配置
+- [x] パイプライン順序変更、ARN対応、PORT_RANGE_RATIO=0.6
 
 ### セッション14で完了済み
 
 - [x] edgeRouter v6.2.0: enforceEdgeRules 逆方向検出
-- [x] PORT_SPREAD 12→8 + PORT_MAX_RATIO clamp（セッション14前半）
+- [x] PORT_SPREAD 12→8 + PORT_MAX_RATIO clamp
 
-### 変更ファイル（セッション15）
+### 変更ファイル（セッション16）
 
 ```
-frontend/src/components/canvas/edgeRouter.postprocess.ts - spreadPorts v2 全面再設計
-frontend/src/components/canvas/edgeRouter.ts             - パイプライン順序変更
-docs/design/EDGE_ROUTING.md                              - 新パイプライン・spreadPorts v2 記載
+frontend/src/components/canvas/edgeRouter.postprocess.ts - spreadPorts 1本スキップ削除 + nullチェック
+docs/design/EDGE_ROUTING.md                              - spreadPorts ルール明記
+docs/HANDOFF.md                                          - セッション16更新
 ```
 
 ## edgeRouter パイプライン（v6.3.0）
@@ -74,7 +76,7 @@ docs/design/EDGE_ROUTING.md                              - 新パイプライン
 
 ## 技術メモ
 
-- **spreadPorts v2**: nodeId:side グルーピング + 絶対座標配置。PORT_RANGE_RATIO=0.6 で辺中央60%を使用。nodeIdに`:` を含むARN対応のため `lastIndexOf(':')` で分割
+- **spreadPorts v2.1**: nodeId:side グルーピング + 絶対座標配置。PORT_RANGE_RATIO=0.6 で辺中央60%を使用。nodeIdに`:` を含むARN対応のため `lastIndexOf(':')` で分割。**1本でもスキップせず中央配置**（enforceEdgeRulesの非中央座標を補正）。src/dstを区別せず同一グループ
 - **逆方向検出**: 始点/終点の座標が実際にどの辺にあるかを判定（許容誤差3px）し、BFS が決定した方向と矛盾する場合にパスを再構築
 - **edgeRouter パイプライン**: グリッドセル20px、障害物マージン1セル、BFS最大20000セル
 - **SVG arrowhead**: `<marker refX=8>` で矢印先端がpath終点に密着

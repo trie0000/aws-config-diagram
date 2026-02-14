@@ -159,9 +159,13 @@ nudgeEdges の完了後に、全エッジに対して3ルールを最終適用�
 
 ### 4. spreadPorts（edgeRouter.postprocess.ts）
 
-enforceEdgeRules で辺座標が確定した後に、同じノード・同じ辺に接続する複数エッジの接続点を均等に分散する。
+enforceEdgeRules で辺座標が確定した後に、同じノード・同じ辺に接続する**全エッジ**（出る線・入る線を区別しない）の接続点を均等に分散する。
 
-**グルーピング**: `nodeId:side`（例: `node-i-xxx:bottom`）。nodeId に `:` を含むケース（AWS ARN）があるため、最後の `:` で分割する。
+**重要ルール**:
+- **1本でもスキップしない**: 1本の場合も辺の中央に配置する（enforceEdgeRulesが非中央座標を設定する場合があるため）
+- **src/dst を区別しない**: 同じノードの同じ辺に接続する出る線と入る線は同一グループとして扱う
+
+**グルーピング**: `nodeId:side`（例: `node-i-xxx:bottom`）。nodeId に `:` を含むケース（AWS ARN）があるため、最後の `:` で分割する。src/dst 両方が同じキーで同一グループに入る。
 
 **配置ルール**:
 ```
@@ -171,7 +175,7 @@ offset[rank] = (rank / (count - 1) - 0.5) × usableRange
 absPos = edgeCenter + offset
 ```
 
-- 1本: 辺の中央
+- 1本: 辺の中央（offset = 0）
 - 2本: 中央から ±usableRange/2（例: EC2 w=41.6 → ±12.48px）
 - 3本: 中央 + ±usableRange/2
 
