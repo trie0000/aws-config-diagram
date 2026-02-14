@@ -8,7 +8,7 @@
 
 import type { DiagramNode } from '../../types/diagram'
 import type { RoutedEdge, ObstacleGrid, Side } from './edgeRouter.types'
-import { GRID_SIZE, nodeIconRect, sideCenter, findClosestNode } from './edgeRouter.types'
+import { GRID_SIZE, CONTAINER_TYPES, nodeIconRect, sideCenter, directionToTarget, findClosestNode } from './edgeRouter.types'
 import {
   unblockRect, reblockCells, bfsSearchWithPenalty, determineSide, simplifyPath,
 } from './edgeRouter.bfs'
@@ -156,11 +156,14 @@ export function reduceCrossings(
       const result = bfsSearchWithPenalty(srcCx, srcCy, dstCx, dstCy, grid, penaltyMap)
 
       if (result) {
-        const srcSide = determineSide(result.gridPath, 'src')
-        const dstSide = determineSide(result.gridPath, 'dst')
+        // コンテナノードは directionToTarget で辺を決定
+        const srcIsContainer = CONTAINER_TYPES.has(srcNode.type)
+        const dstIsContainer = CONTAINER_TYPES.has(dstNode.type)
+        const srcSide: Side = srcIsContainer ? directionToTarget(srcRect, dstRect) : determineSide(result.gridPath, 'src')
+        const dstSide: Side = dstIsContainer ? directionToTarget(dstRect, srcRect) : determineSide(result.gridPath, 'dst')
         const p1 = sideCenter(srcNode, srcSide)
         const p2 = sideCenter(dstNode, dstSide)
-        const wp = simplifyPath(result.gridPath, p1, p2)
+        const wp = simplifyPath(result.gridPath, p1, p2, srcSide, dstSide)
 
         const origWp = r.waypoints
         const origSrc = r.srcSide

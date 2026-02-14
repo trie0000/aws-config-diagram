@@ -516,8 +516,8 @@ export function DiagramCanvas({ state, selectedNodeId, onSelectNode, onMoveNode,
           <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto" markerUnits="userSpaceOnUse">
             <polygon points="0 0, 8 3, 0 6" fill="#94a3b8" />
           </marker>
-          <marker id="arrowhead-lg" markerWidth="12" markerHeight="9" refX="12" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
-            <polygon points="0 0, 12 4.5, 0 9" fill="#94a3b8" />
+          <marker id="arrowhead-lg" markerWidth="16" markerHeight="12" refX="16" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+            <polygon points="0 0, 16 6, 0 12" fill="#94a3b8" />
           </marker>
         </defs>
 

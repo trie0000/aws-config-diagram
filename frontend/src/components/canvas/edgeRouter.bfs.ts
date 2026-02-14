@@ -324,6 +324,8 @@ export function simplifyPath(
   gridPath: Array<{ gx: number; gy: number }>,
   p1: Point,
   p2: Point,
+  srcSide?: Side,
+  dstSide?: Side,
 ): Point[] {
   if (gridPath.length <= 1) return [p1, p2]
 
@@ -359,6 +361,34 @@ export function simplifyPath(
     } else {
       curr.x = prev.x
       curr.y = next.y
+    }
+  }
+
+  // srcSide に基づき、始点から最初の折れ点の第1セグメントを辺方向に揃える
+  if (srcSide && points.length >= 2) {
+    const isHoriz = (srcSide === 'left' || srcSide === 'right')
+    const p0 = points[0]
+    const pNext = points[1]
+    if (isHoriz && pNext.y !== p0.y) {
+      // 水平出発なのにY差がある → 中継点挿入
+      points.splice(1, 0, { x: pNext.x, y: p0.y })
+    } else if (!isHoriz && pNext.x !== p0.x) {
+      // 垂直出発なのにX差がある → 中継点挿入
+      points.splice(1, 0, { x: p0.x, y: pNext.y })
+    }
+  }
+
+  // dstSide に基づき、最後の折れ点から終点の最終セグメントを辺方向に揃える
+  if (dstSide && points.length >= 2) {
+    const isHoriz = (dstSide === 'left' || dstSide === 'right')
+    const pEnd = points[points.length - 1]
+    const pPrev = points[points.length - 2]
+    if (isHoriz && pPrev.y !== pEnd.y) {
+      // 水平到着なのにY差がある → 中継点挿入
+      points.splice(points.length - 1, 0, { x: pPrev.x, y: pEnd.y })
+    } else if (!isHoriz && pPrev.x !== pEnd.x) {
+      // 垂直到着なのにX差がある → 中継点挿入
+      points.splice(points.length - 1, 0, { x: pEnd.x, y: pPrev.y })
     }
   }
 
