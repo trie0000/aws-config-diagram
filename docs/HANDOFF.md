@@ -1,70 +1,80 @@
 # HANDOFF.md - セッション引き継ぎ
 
-> 最終更新: 2026-02-14 セッション13 (NAT GW境界配置 + エッジルーティング改善 + 矢印マーカー修正)
+> 最終更新: 2026-02-14 セッション14 (edgeRouter v6.2.0 — 逆方向検出 + enforceEdgeRules改善)
 
 ## 現在の状態
 
-**NAT GW配置改善 + エッジルーティング品質向上 + 矢印マーカー修正完了**。
-NAT GatewayをSubnet右端境界にまたがる位置に配置、reduceCrossingsのノード参照バグ修正、
-矢印マーカーをuserSpaceOnUseで固定サイズ化。ハイライト時の大きい矢印マーカー追加。
+**edgeRouter v6.2.0 完了**。enforceEdgeRules の逆方向検出を実装。BFS がアイコンを突き抜けるパス（例: bottom辺から上方向）を検出し、パスの2番目以降の方向変化から本来の出口辺を推測して L字パスに再構築する。tabelog / realistic 両データで全11エッジの方向ルール検証済み。
 
-## 完了済み（セッション12-13: NAT GW + エッジ + 矢印修正）
+## 完了済み（セッション14: enforceEdgeRules 逆方向検出）
 
-### NAT Gateway 境界配置
-- [x] `aws_config_parser.py`: `get_nat_usage_map()` メソッド追加（ルートテーブル解析→NAT利用Subnet特定）
-- [x] `diagram_state.py`: NAT GWの`parent_id`をSubnetに変更 + Subnet→NATエッジ生成
-- [x] `layout_engine.py`: NAT GWをSubnet右端境界にまたがる位置に配置（通常フローから除外）
+### edgeRouter v6.2.0 — 逆方向検出
 
-### エッジルーティング改善
-- [x] `edgeRouter.types.ts`: RoutedEdgeに`sourceNodeId`/`targetNodeId`を追加
-- [x] `edgeRouter.ts`: 全`routed.push()`にsourceNodeId/targetNodeIdを追加
-- [x] `edgeRouter.postprocess.ts`: `reduceCrossings`でsourceNodeId/targetNodeIdを正確に参照（findClosestNodeのフォールバック付き）
-- [x] ルーティングロジックは元のBFS center→center + determineSideを維持（bestSides/sideCenter起点は品質低下のため不採用）
+- [x] `enforceStart` に逆方向検出を追加
+  - 始点座標が辺Aにあるのに BFS 方向が辺B（反対辺）を示す場合を検出
+  - パスの2番目以降のセグメント方向から本来の出口辺を推測
+  - L字パスに再構築: `[sideCenter, 中継点, 終点]`
+- [x] `enforceEnd` にも同様の逆方向検出を追加
+- [x] realistic_aws_config.json の `prod-web-alb` 問題修正
+  - 修正前: bottom辺(y=192.4) → 上方向(y=160) → 左方向（ルール違反）
+  - 修正後: left辺(x=561.8) → 左方向 → 下方向（正しいL字パス）
+- [x] tabelog / realistic 両データで全エッジ検証済み
+- [x] EDGE_ROUTING.md 更新（逆方向検出の記載追加）
 
-### 矢印マーカー修正
-- [x] `DiagramCanvas.tsx`: 通常矢印（8×6px）+ 大きい矢印（12×9px）、両方`markerUnits="userSpaceOnUse"`
-- [x] `EdgeLine.tsx`: ハイライト時に`arrowhead-lg`使用
+### 過去のセッション13で完了済み
 
-### 試行後にリバートした変更（重要な教訓）
-- `ensureArrowSegment`（矢印用直線セグメント確保）→ 不要な折れ曲がり発生、削除
-- `orthogonalizeSegments`（斜め線修正）→ ルート品質低下、削除
-- `bestSides`でのBFS接続辺決定 → NAT GW等で不正な方向、determineSideに戻す
-- BFS起点をsideCenterに変更 → 不要な曲がり、center→centerに戻す
-- `markerUnits`なし → strokeWidth倍率で矢印巨大化
-- 矢印サイズ6×4px → 小さすぎて視認不可
+- [x] edgeRouter v4.1.0 → v6.1.0: モジュール分割、enforceEdgeRules、重複WP除去
+- [x] EdgeLine.tsx を描画のみに簡素化（ルール適用ロジック除去）
+- [x] 強調矢印拡大 + コンテナエッジ出口方向修正
+- [x] NAT GW 境界配置 + エッジルーティング改善
 
-### 変更ファイル（セッション12-13）
+### 変更ファイル（セッション14）
 
 ```
-aws_config_parser.py                               - get_nat_usage_map() 追加
-diagram_state.py                                   - NAT GW parent_id 変更 + Subnet→NAT エッジ
-layout_engine.py                                   - NAT GW Subnet右端境界配置
-frontend/src/components/canvas/DiagramCanvas.tsx    - 矢印マーカー (userSpaceOnUse + arrowhead-lg)
-frontend/src/components/canvas/EdgeLine.tsx         - ハイライト時 arrowhead-lg
-frontend/src/components/canvas/edgeRouter.ts        - sourceNodeId/targetNodeId 追加
-frontend/src/components/canvas/edgeRouter.types.ts  - RoutedEdge に sourceNodeId/targetNodeId
-frontend/src/components/canvas/edgeRouter.postprocess.ts - reduceCrossings ノード参照修正
+frontend/src/components/canvas/edgeRouter.ts  - v6.2.0 逆方向検出追加
+docs/design/EDGE_ROUTING.md                   - 逆方向検出の記載追加
 ```
 
-## 完了済み（セッション11: Canvas UX改善）
+## edgeRouter パイプライン（v6.2.0）
 
-### edgeRouter v2.0.0 → v5.0.0 — 障害物回避BFSルーティング
+```
+1. BFS ルーティング (edgeRouter.bfs.ts)
+   - 障害物グリッド構築 → 各エッジで BFS → determineSide → simplifyPath
+2. 後処理 (edgeRouter.postprocess.ts)
+   - reduceCrossings → spreadPorts → nudgeEdges
+3. enforceEdgeRules (edgeRouter.ts)
+   - removeDuplicateWaypoints → enforceStart → enforceEnd
+   - enforceStart/enforceEnd に逆方向検出あり
+4. 描画 (EdgeLine.tsx)
+   - routedEdge.waypoints をそのまま SVG path に変換（ルール適用なし）
+```
 
-- [x] `edgeRouter.ts` v5.0.0: オーケストレータ（3モジュール分割済み）
-  - `edgeRouter.types.ts` — 型定義・定数・共有ユーティリティ
-  - `edgeRouter.bfs.ts` — グリッド構築・BFS探索・パス処理
-  - `edgeRouter.postprocess.ts` — 交差削減・ポート分散・ナッジ
-- [x] BFS: center→center、Dijkstra的（折れ曲がりペナルティ付き）
-- [x] 後処理: reduceCrossings → spreadPorts → nudgeEdges
-- [x] useMemo依存チェーン最適化
+## ファイル構成（エッジルーティング関連）
 
-### スナップガイドライン + その他UX
+| ファイル | 責務 |
+|---------|------|
+| `edgeRouter.types.ts` | 型定義、定数、共有ユーティリティ |
+| `edgeRouter.bfs.ts` | グリッド構築、BFS 探索、determineSide、simplifyPath |
+| `edgeRouter.postprocess.ts` | reduceCrossings, spreadPorts, nudgeEdges |
+| `edgeRouter.ts` | オーケストレータ（routeAllEdges）、enforceEdgeRules |
+| `EdgeLine.tsx` | 描画コンポーネント（描画のみ） |
 
-- [x] ドラッグ＋リサイズ時のスナップガイドライン
-- [x] タッチパッドズーム感度修正
-- [x] コンテナリサイズ、ミニマップ、スクロールバー、VPCフィルタ、Undo/Redo
+## 次のアクション
 
-## 完了済み（セッション1-10）
+1. **更なるエッジルーティング品質改善** — 他のデータセットでの検証
+2. **ノード追加UI（P06）** — 外部システム/コメントノードの手動追加
+3. **レイヤー管理（P08）** — Infrastructure/Security/External等の表示切替
+4. **エクスポートダイアログ（P05）** — DiagramState込みの詳細エクスポート
+
+## 技術メモ
+
+- **逆方向検出**: 始点/終点の座標が実際にどの辺にあるかを判定（許容誤差3px）し、BFS が決定した方向と矛盾する場合にパスを再構築
+- **edgeRouter パイプライン**: グリッドセル20px、障害物マージン1セル、BFS最大20000セル
+- **SVG arrowhead**: `<marker refX=8>` で矢印先端がpath終点に密着
+- **Vite HMR制限**: edgeRouter.ts の変更は HMR で反映されない。`rm -rf node_modules/.vite` + Vite再起動が必要
+- Vite: port 5173、FastAPI: port 8000
+
+## 完了済み（セッション1-13）
 
 <details>
 <summary>展開</summary>
@@ -73,31 +83,21 @@ frontend/src/components/canvas/edgeRouter.postprocess.ts - reduceCrossings ノ�
 - [x] v1〜v4.2: AWSConfigParser + レイアウトエンジン + Excel/PPTX出力
 
 ### セッション5: テスト環境 + 分析
-- [x] AWS CLI テストスクリプト 13本、Config Snapshot取得
+- [x] AWS CLI テストスクリプト、Config Snapshot取得
 
-### セッション6-7: Web エディタ要件 + 技術スタック
-- [x] React 19 + TypeScript + Vite + FastAPI(localhost) に確定
+### セッション6-9: Web エディタ
+- [x] React 19 + TypeScript + Vite + FastAPI(localhost) セットアップ
 
-### セッション8-9: プロジェクトセットアップ + バックエンド
-- [x] Vite + shadcn/ui セットアップ、FastAPI パイプライン実装
+### セッション10: モックアップ v3
+- [x] DiagramCanvas v2.0、SG経由エッジ生成
 
-### セッション10: モックアップ v3 ライトテーマ UI
-- [x] DiagramCanvas v2.0、SG経由エッジ生成（0→14本）、メタデータ強化
+### セッション11: Canvas UX改善
+- [x] edgeRouter v2.0.0（BFS障害物回避）、スナップガイドライン、ズーム感度修正
+
+### セッション12-13: エッジルーティング改善
+- [x] edgeRouter v4.1.0 → v6.1.0: 交差削減、ポート分散、エッジナッジ
+- [x] モジュール分割（types/bfs/postprocess/orchestrator）
+- [x] enforceEdgeRules（重複WP除去 + 始点/終点修正）
+- [x] EdgeLine.tsx 簡素化（描画のみ）
+- [x] NAT GW 境界配置、強調矢印拡大
 </details>
-
-## 次のアクション
-
-1. **ノード追加UI（P06）** — 外部システム/コメントノードの手動追加
-2. **レイヤー管理（P08）** — Infrastructure/Security/External等の表示切替
-3. **エクスポートダイアログ（P05）** — DiagramState込みの詳細エクスポート
-
-## 技術メモ
-
-- **edgeRouter パイプライン**: グリッドセル20px、障害物マージン1セル、BFS最大20000セル、折れ曲がりペナルティ2
-- **SVG arrowhead**: `markerUnits="userSpaceOnUse"` で固定サイズ。通常8×6px、ハイライト12×9px
-- **RoutedEdge**: sourceNodeId/targetNodeIdでreduceCrossingsの正確なノード参照を実現
-- **重要な教訓**: BFSパイプライン後の後処理でwaypointsを変更するのは品質低下の元。determineSide（BFSパス方向）が最適、bestSides（相対位置）はフォールバック専用
-- **スナップ閾値**: `SNAP_THRESHOLD = 5`（SVG座標px）
-- **useMemoチェーン**: nodes → containers/icons → sortedContainers → edges → routedEdges
-- Vite: port 5173、FastAPI: port 8000
-- テストデータ: `frontend/public/realistic_aws_config.json`
