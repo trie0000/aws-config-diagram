@@ -373,13 +373,15 @@ export function DiagramCanvas({ state, selectedNodeId, onSelectNode, onMoveNode,
     ), [state.edges, visibleNodeIds])
 
   // 全エッジの障害物回避ルーティングを一括計算
-  const routedEdges = useMemo(() => {
+  const routedEdgesBase = useMemo(() => {
     if (edges.length === 0) return new Map<string, RoutedEdge>()
     const results = routeAllEdges(state.nodes, edges)
     const map = new Map<string, RoutedEdge>()
     for (const r of results) map.set(r.edgeId, r)
     return map
   }, [state.nodes, edges])
+
+  const routedEdges = routedEdgesBase
 
   // =============================================
   // スクロールバー計算

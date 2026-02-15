@@ -1,5 +1,7 @@
 /**
  * edgeRouter.types.ts: エッジルーティング共通型・定数・ユーティリティ
+ *
+ * Version: 12.0.0
  */
 
 import type { DiagramNode } from '../../types/diagram'
@@ -11,38 +13,13 @@ import type { DiagramNode } from '../../types/diagram'
 export type Side = 'top' | 'bottom' | 'left' | 'right'
 export type Point = { x: number; y: number }
 
-/** ルーティング結果 */
 export interface RoutedEdge {
   edgeId: string
   waypoints: Point[]
   srcSide: Side
   dstSide: Side
-  /** 元のエッジのソース/ターゲットノードID（reduceCrossings で正確なノードを参照するため） */
   sourceNodeId?: string
   targetNodeId?: string
-}
-
-/** 障害物グリッド */
-export interface ObstacleGrid {
-  occupied: Set<string>
-  minX: number
-  minY: number
-  maxX: number
-  maxY: number
-}
-
-/** BFS ノード */
-export interface BFSNode {
-  gx: number
-  gy: number
-  dir: number  // 0=N, 1=E, 2=S, 3=W, -1=start
-  cost: number
-}
-
-/** BFS 結果 */
-export interface BFSResult {
-  gridPath: Array<{ gx: number; gy: number }>
-  cost: number
 }
 
 // ============================================================
@@ -50,29 +27,6 @@ export interface BFSResult {
 // ============================================================
 
 export const CONTAINER_TYPES = new Set(['aws-cloud', 'vpc', 'az', 'subnet'])
-
-/** グリッドセルサイズ（px） — 小さいほど精密だが遅い */
-export const GRID_SIZE = 20
-
-/** 障害物の周りのマージン（グリッドセル数） */
-export const OBSTACLE_MARGIN = 1
-
-/** BFS 探索の最大セル数（無限ループ防止） */
-export const MAX_BFS_CELLS = 20000
-
-/** 折れ曲がりペナルティ（BFS コスト加算、曲がりの少ないルートを優先） */
-export const BEND_PENALTY = 2
-
-/** 交差ペナルティ（再ルーティング BFS でのみ使用） */
-export const CROSS_PENALTY = 10
-
-/** BFS 方向定義: N, E, S, W */
-export const DIRS = [
-  { dx: 0, dy: -1 }, // 0: N (上)
-  { dx: 1, dy: 0 },  // 1: E (右)
-  { dx: 0, dy: 1 },  // 2: S (下)
-  { dx: -1, dy: 0 }, // 3: W (左)
-]
 
 // ============================================================
 // Shared Utilities
@@ -124,10 +78,8 @@ export function bestSides(src: DiagramNode, dst: DiagramNode): { srcSide: Side; 
   }
 }
 
-
 /**
  * コンテナノード用: ソース矩形からターゲット矩形への最適な出口辺を返す。
- * ターゲット中心がソース矩形の外にある方向のうち、最も近い辺を選択。
  */
 export function directionToTarget(
   srcRect: { x: number; y: number; w: number; h: number },
@@ -170,25 +122,4 @@ export function pointsToPath(points: Point[]): string {
     d += ` L ${points[i].x} ${points[i].y}`
   }
   return d
-}
-
-/** 指定座標に最も近いアイコンノードを探す */
-export function findClosestNode(
-  pt: Point,
-  nodes: Record<string, DiagramNode>,
-): DiagramNode | null {
-  let best: DiagramNode | null = null
-  let bestDist = Infinity
-  for (const node of Object.values(nodes)) {
-    if (CONTAINER_TYPES.has(node.type)) continue
-    const r = nodeIconRect(node)
-    const cx = r.x + r.w / 2
-    const cy = r.y + r.h / 2
-    const d = Math.abs(pt.x - cx) + Math.abs(pt.y - cy)
-    if (d < bestDist) {
-      bestDist = d
-      best = node
-    }
-  }
-  return best
 }

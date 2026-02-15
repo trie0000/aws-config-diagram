@@ -1,0 +1,1008 @@
+{
+  "fileVersion": "1.0",
+  "requestId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "configurationItems": [
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "vpc-0a1b2c3d4e5f60001",
+      "arn": "arn:aws:ec2:ap-northeast-1:123456789012:vpc/vpc-0a1b2c3d4e5f60001",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "f1e2d3c4-b5a6-9788-7654-321098765432",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::VPC",
+      "awsRegion": "ap-northeast-1",
+      "resourceCreationTime": "2024-04-01T00:00:00.000Z",
+      "tags": {
+        "Name": "prod-main-vpc",
+        "Environment": "Production",
+        "Project": "webapp",
+        "ManagedBy": "terraform"
+      },
+      "relationships": [
+        {"resourceId": "igw-0a1b2c3d4e5f60010", "resourceType": "AWS::EC2::InternetGateway", "name": "Is attached to InternetGateway"},
+        {"resourceId": "subnet-0a1b2c3d4e5f60101", "resourceType": "AWS::EC2::Subnet", "name": "Contains Subnet"},
+        {"resourceId": "subnet-0a1b2c3d4e5f60102", "resourceType": "AWS::EC2::Subnet", "name": "Contains Subnet"},
+        {"resourceId": "subnet-0a1b2c3d4e5f60201", "resourceType": "AWS::EC2::Subnet", "name": "Contains Subnet"},
+        {"resourceId": "subnet-0a1b2c3d4e5f60202", "resourceType": "AWS::EC2::Subnet", "name": "Contains Subnet"},
+        {"resourceId": "subnet-0a1b2c3d4e5f60301", "resourceType": "AWS::EC2::Subnet", "name": "Contains Subnet"},
+        {"resourceId": "subnet-0a1b2c3d4e5f60302", "resourceType": "AWS::EC2::Subnet", "name": "Contains Subnet"}
+      ],
+      "configuration": {
+        "vpcId": "vpc-0a1b2c3d4e5f60001",
+        "cidrBlock": "10.1.0.0/16",
+        "state": "available",
+        "isDefault": false,
+        "instanceTenancy": "default",
+        "dhcpOptionsId": "dopt-0a1b2c3d",
+        "cidrBlockAssociationSet": [
+          {"cidrBlock": "10.1.0.0/16", "associationId": "vpc-cidr-assoc-0a1b2c3d", "cidrBlockState": {"state": "associated"}}
+        ],
+        "isDefault": false,
+        "tags": [
+          {"key": "Name", "value": "prod-main-vpc"},
+          {"key": "Environment", "value": "Production"}
+        ]
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "igw-0a1b2c3d4e5f60010",
+      "arn": "arn:aws:ec2:ap-northeast-1:123456789012:internet-gateway/igw-0a1b2c3d4e5f60010",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "a2b3c4d5-e6f7-8901-2345-678901234567",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::InternetGateway",
+      "awsRegion": "ap-northeast-1",
+      "resourceCreationTime": "2024-04-01T00:01:00.000Z",
+      "tags": {"Name": "prod-igw"},
+      "relationships": [
+        {"resourceId": "vpc-0a1b2c3d4e5f60001", "resourceType": "AWS::EC2::VPC", "name": "Is attached to VPC"}
+      ],
+      "configuration": {
+        "internetGatewayId": "igw-0a1b2c3d4e5f60010",
+        "attachments": [{"vpcId": "vpc-0a1b2c3d4e5f60001", "state": "available"}],
+        "tags": [{"key": "Name", "value": "prod-igw"}]
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "subnet-0a1b2c3d4e5f60101",
+      "arn": "arn:aws:ec2:ap-northeast-1:123456789012:subnet/subnet-0a1b2c3d4e5f60101",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "b3c4d5e6-f7a8-9012-3456-789012345678",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::Subnet",
+      "awsRegion": "ap-northeast-1",
+      "availibilityZone": "ap-northeast-1a",
+      "resourceCreationTime": "2024-04-01T00:02:00.000Z",
+      "tags": {"Name": "prod-public-1a", "Tier": "Public"},
+      "relationships": [
+        {"resourceId": "vpc-0a1b2c3d4e5f60001", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "subnetId": "subnet-0a1b2c3d4e5f60101",
+        "subnetArn": "arn:aws:ec2:ap-northeast-1:123456789012:subnet/subnet-0a1b2c3d4e5f60101",
+        "vpcId": "vpc-0a1b2c3d4e5f60001",
+        "cidrBlock": "10.1.1.0/24",
+        "availabilityZone": "ap-northeast-1a",
+        "availabilityZoneId": "apne1-az4",
+        "mapPublicIpOnLaunch": true,
+        "state": "available",
+        "defaultForAz": false,
+        "assignIpv6AddressOnCreation": false
+      }
+    },
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "subnet-0a1b2c3d4e5f60102",
+      "arn": "arn:aws:ec2:ap-northeast-1:123456789012:subnet/subnet-0a1b2c3d4e5f60102",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "c4d5e6f7-a8b9-0123-4567-890123456789",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::Subnet",
+      "awsRegion": "ap-northeast-1",
+      "availibilityZone": "ap-northeast-1c",
+      "resourceCreationTime": "2024-04-01T00:02:00.000Z",
+      "tags": {"Name": "prod-public-1c", "Tier": "Public"},
+      "relationships": [
+        {"resourceId": "vpc-0a1b2c3d4e5f60001", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "subnetId": "subnet-0a1b2c3d4e5f60102",
+        "subnetArn": "arn:aws:ec2:ap-northeast-1:123456789012:subnet/subnet-0a1b2c3d4e5f60102",
+        "vpcId": "vpc-0a1b2c3d4e5f60001",
+        "cidrBlock": "10.1.2.0/24",
+        "availabilityZone": "ap-northeast-1c",
+        "availabilityZoneId": "apne1-az1",
+        "mapPublicIpOnLaunch": true,
+        "state": "available",
+        "defaultForAz": false,
+        "assignIpv6AddressOnCreation": false
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "subnet-0a1b2c3d4e5f60201",
+      "arn": "arn:aws:ec2:ap-northeast-1:123456789012:subnet/subnet-0a1b2c3d4e5f60201",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "d5e6f7a8-b9c0-1234-5678-901234567890",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::Subnet",
+      "awsRegion": "ap-northeast-1",
+      "availibilityZone": "ap-northeast-1a",
+      "resourceCreationTime": "2024-04-01T00:03:00.000Z",
+      "tags": {"Name": "prod-private-1a", "Tier": "Private"},
+      "relationships": [
+        {"resourceId": "vpc-0a1b2c3d4e5f60001", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "subnetId": "subnet-0a1b2c3d4e5f60201",
+        "subnetArn": "arn:aws:ec2:ap-northeast-1:123456789012:subnet/subnet-0a1b2c3d4e5f60201",
+        "vpcId": "vpc-0a1b2c3d4e5f60001",
+        "cidrBlock": "10.1.10.0/24",
+        "availabilityZone": "ap-northeast-1a",
+        "availabilityZoneId": "apne1-az4",
+        "mapPublicIpOnLaunch": false,
+        "state": "available",
+        "defaultForAz": false,
+        "assignIpv6AddressOnCreation": false
+      }
+    },
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "subnet-0a1b2c3d4e5f60202",
+      "arn": "arn:aws:ec2:ap-northeast-1:123456789012:subnet/subnet-0a1b2c3d4e5f60202",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "e6f7a8b9-c0d1-2345-6789-012345678901",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::Subnet",
+      "awsRegion": "ap-northeast-1",
+      "availibilityZone": "ap-northeast-1c",
+      "resourceCreationTime": "2024-04-01T00:03:00.000Z",
+      "tags": {"Name": "prod-private-1c", "Tier": "Private"},
+      "relationships": [
+        {"resourceId": "vpc-0a1b2c3d4e5f60001", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "subnetId": "subnet-0a1b2c3d4e5f60202",
+        "subnetArn": "arn:aws:ec2:ap-northeast-1:123456789012:subnet/subnet-0a1b2c3d4e5f60202",
+        "vpcId": "vpc-0a1b2c3d4e5f60001",
+        "cidrBlock": "10.1.11.0/24",
+        "availabilityZone": "ap-northeast-1c",
+        "availabilityZoneId": "apne1-az1",
+        "mapPublicIpOnLaunch": false,
+        "state": "available",
+        "defaultForAz": false,
+        "assignIpv6AddressOnCreation": false
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "subnet-0a1b2c3d4e5f60301",
+      "arn": "arn:aws:ec2:ap-northeast-1:123456789012:subnet/subnet-0a1b2c3d4e5f60301",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "f7a8b9c0-d1e2-3456-7890-123456789012",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::Subnet",
+      "awsRegion": "ap-northeast-1",
+      "availibilityZone": "ap-northeast-1a",
+      "resourceCreationTime": "2024-04-01T00:04:00.000Z",
+      "tags": {"Name": "prod-isolated-1a", "Tier": "Isolated"},
+      "relationships": [
+        {"resourceId": "vpc-0a1b2c3d4e5f60001", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "subnetId": "subnet-0a1b2c3d4e5f60301",
+        "subnetArn": "arn:aws:ec2:ap-northeast-1:123456789012:subnet/subnet-0a1b2c3d4e5f60301",
+        "vpcId": "vpc-0a1b2c3d4e5f60001",
+        "cidrBlock": "10.1.20.0/24",
+        "availabilityZone": "ap-northeast-1a",
+        "availabilityZoneId": "apne1-az4",
+        "mapPublicIpOnLaunch": false,
+        "state": "available",
+        "defaultForAz": false,
+        "assignIpv6AddressOnCreation": false
+      }
+    },
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "subnet-0a1b2c3d4e5f60302",
+      "arn": "arn:aws:ec2:ap-northeast-1:123456789012:subnet/subnet-0a1b2c3d4e5f60302",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "a8b9c0d1-e2f3-4567-8901-234567890123",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::Subnet",
+      "awsRegion": "ap-northeast-1",
+      "availibilityZone": "ap-northeast-1c",
+      "resourceCreationTime": "2024-04-01T00:04:00.000Z",
+      "tags": {"Name": "prod-isolated-1c", "Tier": "Isolated"},
+      "relationships": [
+        {"resourceId": "vpc-0a1b2c3d4e5f60001", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "subnetId": "subnet-0a1b2c3d4e5f60302",
+        "subnetArn": "arn:aws:ec2:ap-northeast-1:123456789012:subnet/subnet-0a1b2c3d4e5f60302",
+        "vpcId": "vpc-0a1b2c3d4e5f60001",
+        "cidrBlock": "10.1.21.0/24",
+        "availabilityZone": "ap-northeast-1c",
+        "availabilityZoneId": "apne1-az1",
+        "mapPublicIpOnLaunch": false,
+        "state": "available",
+        "defaultForAz": false,
+        "assignIpv6AddressOnCreation": false
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "nat-0a1b2c3d4e5f60020",
+      "arn": "arn:aws:ec2:ap-northeast-1:123456789012:natgateway/nat-0a1b2c3d4e5f60020",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "b9c0d1e2-f3a4-5678-9012-345678901234",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::NatGateway",
+      "awsRegion": "ap-northeast-1",
+      "resourceCreationTime": "2024-04-01T00:05:00.000Z",
+      "tags": {"Name": "prod-nat-1a"},
+      "relationships": [
+        {"resourceId": "subnet-0a1b2c3d4e5f60101", "resourceType": "AWS::EC2::Subnet", "name": "Is contained in Subnet"},
+        {"resourceId": "vpc-0a1b2c3d4e5f60001", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "natGatewayId": "nat-0a1b2c3d4e5f60020",
+        "subnetId": "subnet-0a1b2c3d4e5f60101",
+        "vpcId": "vpc-0a1b2c3d4e5f60001",
+        "state": "available",
+        "connectivityType": "public",
+        "createTime": "2024-04-01T00:05:00.000Z",
+        "natGatewayAddresses": [
+          {
+            "allocationId": "eipalloc-0a1b2c3d4e5f6001",
+            "networkInterfaceId": "eni-0a1b2c3d4e5f6nat",
+            "privateIp": "10.1.1.200",
+            "publicIp": "13.114.52.73"
+          }
+        ]
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "arn:aws:elasticloadbalancing:ap-northeast-1:123456789012:loadbalancer/app/prod-web-alb/a1b2c3d4e5f67890",
+      "arn": "arn:aws:elasticloadbalancing:ap-northeast-1:123456789012:loadbalancer/app/prod-web-alb/a1b2c3d4e5f67890",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "c0d1e2f3-a4b5-6789-0123-456789012345",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+      "awsRegion": "ap-northeast-1",
+      "resourceCreationTime": "2024-04-15T10:00:00.000Z",
+      "tags": {"Name": "prod-web-alb", "Environment": "Production"},
+      "relationships": [
+        {"resourceId": "subnet-0a1b2c3d4e5f60101", "resourceType": "AWS::EC2::Subnet", "name": "Is in Subnet"},
+        {"resourceId": "subnet-0a1b2c3d4e5f60102", "resourceType": "AWS::EC2::Subnet", "name": "Is in Subnet"},
+        {"resourceId": "sg-0a1b2c3d4e5f6alb0", "resourceType": "AWS::EC2::SecurityGroup", "name": "Is associated with SecurityGroup"},
+        {"resourceId": "vpc-0a1b2c3d4e5f60001", "resourceType": "AWS::EC2::VPC", "name": "Is in VPC"}
+      ],
+      "configuration": {
+        "loadBalancerArn": "arn:aws:elasticloadbalancing:ap-northeast-1:123456789012:loadbalancer/app/prod-web-alb/a1b2c3d4e5f67890",
+        "loadBalancerName": "prod-web-alb",
+        "dNSName": "prod-web-alb-a1b2c3d4.ap-northeast-1.elb.amazonaws.com",
+        "canonicalHostedZoneId": "Z14GRHDCWA56QT",
+        "createdTime": "2024-04-15T10:00:00.000Z",
+        "type": "application",
+        "scheme": "internet-facing",
+        "state": {"code": "active"},
+        "vpcId": "vpc-0a1b2c3d4e5f60001",
+        "availabilityZones": [
+          {"zoneName": "ap-northeast-1a", "subnetId": "subnet-0a1b2c3d4e5f60101", "loadBalancerAddresses": []},
+          {"zoneName": "ap-northeast-1c", "subnetId": "subnet-0a1b2c3d4e5f60102", "loadBalancerAddresses": []}
+        ],
+        "securityGroups": ["sg-0a1b2c3d4e5f6alb0"],
+        "ipAddressType": "ipv4"
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "arn:aws:wafv2:ap-northeast-1:123456789012:regional/webacl/prod-web-waf/a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "arn": "arn:aws:wafv2:ap-northeast-1:123456789012:regional/webacl/prod-web-waf/a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "d1e2f3a4-b5c6-7890-1234-567890123456",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::WAFv2::WebACL",
+      "awsRegion": "ap-northeast-1",
+      "resourceCreationTime": "2024-04-20T00:00:00.000Z",
+      "tags": {"Name": "prod-web-waf"},
+      "relationships": [
+        {"resourceId": "arn:aws:elasticloadbalancing:ap-northeast-1:123456789012:loadbalancer/app/prod-web-alb/a1b2c3d4e5f67890", "resourceType": "AWS::ElasticLoadBalancingV2::LoadBalancer", "name": "Is associated with ALB"}
+      ],
+      "configuration": {
+        "name": "prod-web-waf",
+        "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "aRN": "arn:aws:wafv2:ap-northeast-1:123456789012:regional/webacl/prod-web-waf/a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "scope": "REGIONAL",
+        "defaultAction": {"allow": {}},
+        "description": "WAF for production web application",
+        "rules": [
+          {
+            "name": "AWS-AWSManagedRulesCommonRuleSet",
+            "priority": 1,
+            "statement": {"managedRuleGroupStatement": {"vendorName": "AWS", "name": "AWSManagedRulesCommonRuleSet"}},
+            "overrideAction": {"none": {}},
+            "visibilityConfig": {"sampledRequestsEnabled": true, "cloudWatchMetricsEnabled": true, "metricName": "CommonRuleSetMetric"}
+          },
+          {
+            "name": "AWS-AWSManagedRulesKnownBadInputsRuleSet",
+            "priority": 2,
+            "statement": {"managedRuleGroupStatement": {"vendorName": "AWS", "name": "AWSManagedRulesKnownBadInputsRuleSet"}},
+            "overrideAction": {"none": {}},
+            "visibilityConfig": {"sampledRequestsEnabled": true, "cloudWatchMetricsEnabled": true, "metricName": "KnownBadInputsMetric"}
+          },
+          {
+            "name": "AWS-AWSManagedRulesSQLiRuleSet",
+            "priority": 3,
+            "statement": {"managedRuleGroupStatement": {"vendorName": "AWS", "name": "AWSManagedRulesSQLiRuleSet"}},
+            "overrideAction": {"none": {}},
+            "visibilityConfig": {"sampledRequestsEnabled": true, "cloudWatchMetricsEnabled": true, "metricName": "SQLiRuleSetMetric"}
+          },
+          {
+            "name": "RateLimit-2000",
+            "priority": 4,
+            "statement": {"rateBasedStatement": {"limit": 2000, "aggregateKeyType": "IP"}},
+            "action": {"block": {}},
+            "visibilityConfig": {"sampledRequestsEnabled": true, "cloudWatchMetricsEnabled": true, "metricName": "RateLimitMetric"}
+          }
+        ],
+        "capacity": 900,
+        "visibilityConfig": {"sampledRequestsEnabled": true, "cloudWatchMetricsEnabled": true, "metricName": "prod-web-waf"},
+        "associatedResources": [
+          "arn:aws:elasticloadbalancing:ap-northeast-1:123456789012:loadbalancer/app/prod-web-alb/a1b2c3d4e5f67890"
+        ]
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "i-0a1b2c3d4e5f6web1",
+      "arn": "arn:aws:ec2:ap-northeast-1:123456789012:instance/i-0a1b2c3d4e5f6web1",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "e2f3a4b5-c6d7-8901-2345-678901234567",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::Instance",
+      "awsRegion": "ap-northeast-1",
+      "availibilityZone": "ap-northeast-1a",
+      "resourceCreationTime": "2024-05-01T08:00:00.000Z",
+      "tags": {"Name": "prod-web-1a", "Role": "WebServer", "Environment": "Production"},
+      "relationships": [
+        {"resourceId": "subnet-0a1b2c3d4e5f60101", "resourceType": "AWS::EC2::Subnet", "name": "Is contained in Subnet"},
+        {"resourceId": "sg-0a1b2c3d4e5f6web0", "resourceType": "AWS::EC2::SecurityGroup", "name": "Is associated with SecurityGroup"},
+        {"resourceId": "vpc-0a1b2c3d4e5f60001", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"},
+        {"resourceId": "vol-0a1b2c3d4eweb1rt", "resourceType": "AWS::EC2::Volume", "name": "Attached Volume", "direction": "OUT"},
+        {"resourceId": "eni-0a1b2c3d4eweb1ni", "resourceType": "AWS::EC2::NetworkInterface", "name": "Contains NetworkInterface"}
+      ],
+      "configuration": {
+        "instanceId": "i-0a1b2c3d4e5f6web1",
+        "imageId": "ami-0d52744d6551d851e",
+        "state": {"code": 16, "name": "running"},
+        "privateDnsName": "ip-10-1-1-10.ap-northeast-1.compute.internal",
+        "publicDnsName": "",
+        "stateTransitionReason": "",
+        "keyName": "prod-keypair",
+        "amiLaunchIndex": 0,
+        "instanceType": "c6i.xlarge",
+        "launchTime": "2024-05-01T08:00:00.000Z",
+        "placement": {"availabilityZone": "ap-northeast-1a", "groupName": "", "tenancy": "default"},
+        "monitoring": {"state": "enabled"},
+        "subnetId": "subnet-0a1b2c3d4e5f60101",
+        "vpcId": "vpc-0a1b2c3d4e5f60001",
+        "privateIpAddress": "10.1.1.10",
+        "publicIpAddress": null,
+        "architecture": "x86_64",
+        "rootDeviceType": "ebs",
+        "rootDeviceName": "/dev/xvda",
+        "blockDeviceMappings": [
+          {"deviceName": "/dev/xvda", "ebs": {"volumeId": "vol-0a1b2c3d4eweb1rt", "status": "attached", "attachTime": "2024-05-01T08:00:00.000Z", "deleteOnTermination": true}}
+        ],
+        "virtualizationType": "hvm",
+        "securityGroups": [{"groupName": "prod-web-sg", "groupId": "sg-0a1b2c3d4e5f6web0"}],
+        "iamInstanceProfile": {"arn": "arn:aws:iam::123456789012:instance-profile/prod-web-role", "id": "AIPAXXXXXXXXXXX"},
+        "networkInterfaces": [
+          {
+            "networkInterfaceId": "eni-0a1b2c3d4eweb1ni",
+            "subnetId": "subnet-0a1b2c3d4e5f60101",
+            "vpcId": "vpc-0a1b2c3d4e5f60001",
+            "description": "",
+            "ownerId": "123456789012",
+            "status": "in-use",
+            "macAddress": "0a:1b:2c:3d:4e:01",
+            "privateIpAddress": "10.1.1.10",
+            "privateDnsName": "ip-10-1-1-10.ap-northeast-1.compute.internal",
+            "sourceDestCheck": true,
+            "groups": [{"groupName": "prod-web-sg", "groupId": "sg-0a1b2c3d4e5f6web0"}],
+            "attachment": {"attachmentId": "eni-attach-0a1b2c01", "deviceIndex": 0, "status": "attached", "attachTime": "2024-05-01T08:00:00.000Z", "deleteOnTermination": true},
+            "privateIpAddresses": [{"privateIpAddress": "10.1.1.10", "privateDnsName": "ip-10-1-1-10.ap-northeast-1.compute.internal", "primary": true}]
+          }
+        ],
+        "ebsOptimized": true,
+        "enaSupport": true,
+        "hypervisor": "xen",
+        "metadataOptions": {"state": "applied", "httpTokens": "required", "httpPutResponseHopLimit": 2, "httpEndpoint": "enabled"}
+      }
+    },
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "i-0a1b2c3d4e5f6web2",
+      "arn": "arn:aws:ec2:ap-northeast-1:123456789012:instance/i-0a1b2c3d4e5f6web2",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "f3a4b5c6-d7e8-9012-3456-789012345678",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::Instance",
+      "awsRegion": "ap-northeast-1",
+      "availibilityZone": "ap-northeast-1c",
+      "resourceCreationTime": "2024-05-01T08:00:00.000Z",
+      "tags": {"Name": "prod-web-1c", "Role": "WebServer", "Environment": "Production"},
+      "relationships": [
+        {"resourceId": "subnet-0a1b2c3d4e5f60102", "resourceType": "AWS::EC2::Subnet", "name": "Is contained in Subnet"},
+        {"resourceId": "sg-0a1b2c3d4e5f6web0", "resourceType": "AWS::EC2::SecurityGroup", "name": "Is associated with SecurityGroup"},
+        {"resourceId": "vpc-0a1b2c3d4e5f60001", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "instanceId": "i-0a1b2c3d4e5f6web2",
+        "imageId": "ami-0d52744d6551d851e",
+        "state": {"code": 16, "name": "running"},
+        "privateDnsName": "ip-10-1-2-10.ap-northeast-1.compute.internal",
+        "publicDnsName": "",
+        "instanceType": "c6i.xlarge",
+        "launchTime": "2024-05-01T08:00:00.000Z",
+        "placement": {"availabilityZone": "ap-northeast-1c", "groupName": "", "tenancy": "default"},
+        "monitoring": {"state": "enabled"},
+        "subnetId": "subnet-0a1b2c3d4e5f60102",
+        "vpcId": "vpc-0a1b2c3d4e5f60001",
+        "privateIpAddress": "10.1.2.10",
+        "publicIpAddress": null,
+        "architecture": "x86_64",
+        "rootDeviceType": "ebs",
+        "virtualizationType": "hvm",
+        "securityGroups": [{"groupName": "prod-web-sg", "groupId": "sg-0a1b2c3d4e5f6web0"}],
+        "networkInterfaces": [
+          {
+            "networkInterfaceId": "eni-0a1b2c3d4eweb2ni",
+            "subnetId": "subnet-0a1b2c3d4e5f60102",
+            "vpcId": "vpc-0a1b2c3d4e5f60001",
+            "privateIpAddress": "10.1.2.10",
+            "groups": [{"groupName": "prod-web-sg", "groupId": "sg-0a1b2c3d4e5f6web0"}]
+          }
+        ],
+        "ebsOptimized": true
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "i-0a1b2c3d4e5f6app1",
+      "arn": "arn:aws:ec2:ap-northeast-1:123456789012:instance/i-0a1b2c3d4e5f6app1",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "a4b5c6d7-e8f9-0123-4567-890123456789",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::Instance",
+      "awsRegion": "ap-northeast-1",
+      "availibilityZone": "ap-northeast-1a",
+      "resourceCreationTime": "2024-05-01T09:00:00.000Z",
+      "tags": {"Name": "prod-app-1a", "Role": "AppServer", "Environment": "Production"},
+      "relationships": [
+        {"resourceId": "subnet-0a1b2c3d4e5f60201", "resourceType": "AWS::EC2::Subnet", "name": "Is contained in Subnet"},
+        {"resourceId": "sg-0a1b2c3d4e5f6app0", "resourceType": "AWS::EC2::SecurityGroup", "name": "Is associated with SecurityGroup"},
+        {"resourceId": "vpc-0a1b2c3d4e5f60001", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "instanceId": "i-0a1b2c3d4e5f6app1",
+        "imageId": "ami-0d52744d6551d851e",
+        "state": {"code": 16, "name": "running"},
+        "privateDnsName": "ip-10-1-10-10.ap-northeast-1.compute.internal",
+        "publicDnsName": "",
+        "instanceType": "m6i.2xlarge",
+        "launchTime": "2024-05-01T09:00:00.000Z",
+        "placement": {"availabilityZone": "ap-northeast-1a", "groupName": "", "tenancy": "default"},
+        "monitoring": {"state": "enabled"},
+        "subnetId": "subnet-0a1b2c3d4e5f60201",
+        "vpcId": "vpc-0a1b2c3d4e5f60001",
+        "privateIpAddress": "10.1.10.10",
+        "publicIpAddress": null,
+        "architecture": "x86_64",
+        "rootDeviceType": "ebs",
+        "virtualizationType": "hvm",
+        "securityGroups": [{"groupName": "prod-app-sg", "groupId": "sg-0a1b2c3d4e5f6app0"}],
+        "networkInterfaces": [
+          {
+            "networkInterfaceId": "eni-0a1b2c3d4eapp1ni",
+            "subnetId": "subnet-0a1b2c3d4e5f60201",
+            "vpcId": "vpc-0a1b2c3d4e5f60001",
+            "privateIpAddress": "10.1.10.10",
+            "groups": [{"groupName": "prod-app-sg", "groupId": "sg-0a1b2c3d4e5f6app0"}]
+          }
+        ],
+        "ebsOptimized": true
+      }
+    },
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "i-0a1b2c3d4e5f6app2",
+      "arn": "arn:aws:ec2:ap-northeast-1:123456789012:instance/i-0a1b2c3d4e5f6app2",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "b5c6d7e8-f9a0-1234-5678-901234567890",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::Instance",
+      "awsRegion": "ap-northeast-1",
+      "availibilityZone": "ap-northeast-1c",
+      "resourceCreationTime": "2024-05-01T09:00:00.000Z",
+      "tags": {"Name": "prod-app-1c", "Role": "AppServer", "Environment": "Production"},
+      "relationships": [
+        {"resourceId": "subnet-0a1b2c3d4e5f60202", "resourceType": "AWS::EC2::Subnet", "name": "Is contained in Subnet"},
+        {"resourceId": "sg-0a1b2c3d4e5f6app0", "resourceType": "AWS::EC2::SecurityGroup", "name": "Is associated with SecurityGroup"},
+        {"resourceId": "vpc-0a1b2c3d4e5f60001", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "instanceId": "i-0a1b2c3d4e5f6app2",
+        "imageId": "ami-0d52744d6551d851e",
+        "state": {"code": 16, "name": "running"},
+        "privateDnsName": "ip-10-1-11-10.ap-northeast-1.compute.internal",
+        "publicDnsName": "",
+        "instanceType": "m6i.2xlarge",
+        "launchTime": "2024-05-01T09:00:00.000Z",
+        "placement": {"availabilityZone": "ap-northeast-1c", "groupName": "", "tenancy": "default"},
+        "monitoring": {"state": "enabled"},
+        "subnetId": "subnet-0a1b2c3d4e5f60202",
+        "vpcId": "vpc-0a1b2c3d4e5f60001",
+        "privateIpAddress": "10.1.11.10",
+        "publicIpAddress": null,
+        "architecture": "x86_64",
+        "rootDeviceType": "ebs",
+        "virtualizationType": "hvm",
+        "securityGroups": [{"groupName": "prod-app-sg", "groupId": "sg-0a1b2c3d4e5f6app0"}],
+        "networkInterfaces": [
+          {
+            "networkInterfaceId": "eni-0a1b2c3d4eapp2ni",
+            "subnetId": "subnet-0a1b2c3d4e5f60202",
+            "vpcId": "vpc-0a1b2c3d4e5f60001",
+            "privateIpAddress": "10.1.11.10",
+            "groups": [{"groupName": "prod-app-sg", "groupId": "sg-0a1b2c3d4e5f6app0"}]
+          }
+        ],
+        "ebsOptimized": true
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "db-prod-aurora-writer",
+      "arn": "arn:aws:rds:ap-northeast-1:123456789012:db:prod-aurora-writer",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "c6d7e8f9-a0b1-2345-6789-012345678901",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::RDS::DBInstance",
+      "awsRegion": "ap-northeast-1",
+      "availibilityZone": "ap-northeast-1a",
+      "resourceCreationTime": "2024-04-20T00:00:00.000Z",
+      "tags": {"Name": "prod-aurora-writer", "Environment": "Production"},
+      "relationships": [
+        {"resourceId": "sg-0a1b2c3d4e5f6rds0", "resourceType": "AWS::EC2::SecurityGroup", "name": "Is associated with SecurityGroup"},
+        {"resourceId": "vpc-0a1b2c3d4e5f60001", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "dBInstanceIdentifier": "prod-aurora-writer",
+        "dBInstanceClass": "db.r6g.xlarge",
+        "engine": "aurora-mysql",
+        "engineVersion": "8.0.mysql_aurora.3.05.2",
+        "dBInstanceStatus": "available",
+        "masterUsername": "admin",
+        "endpoint": {
+          "address": "prod-aurora-writer.cluster-c1a2b3c4d5e6.ap-northeast-1.rds.amazonaws.com",
+          "port": 3306,
+          "hostedZoneId": "Z24O6O9L7SGTNB"
+        },
+        "allocatedStorage": 100,
+        "instanceCreateTime": "2024-04-20T00:00:00.000Z",
+        "preferredBackupWindow": "18:00-18:30",
+        "backupRetentionPeriod": 7,
+        "multiAZ": true,
+        "autoMinorVersionUpgrade": true,
+        "readReplicaDBInstanceIdentifiers": [],
+        "licenseModel": "general-public-license",
+        "optionGroupMemberships": [{"optionGroupName": "default:aurora-mysql-8-0", "status": "in-sync"}],
+        "publiclyAccessible": false,
+        "storageType": "aurora",
+        "storageEncrypted": true,
+        "kmsKeyId": "arn:aws:kms:ap-northeast-1:123456789012:key/a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "dBClusterIdentifier": "prod-aurora-cluster",
+        "availabilityZone": "ap-northeast-1a",
+        "dBSubnetGroup": {
+          "dBSubnetGroupName": "prod-db-subnet-group",
+          "dBSubnetGroupDescription": "Subnet group for production Aurora",
+          "vpcId": "vpc-0a1b2c3d4e5f60001",
+          "subnetGroupStatus": "Complete",
+          "subnets": [
+            {"subnetIdentifier": "subnet-0a1b2c3d4e5f60301", "subnetAvailabilityZone": {"name": "ap-northeast-1a"}, "subnetOutpost": {}, "subnetStatus": "Active"},
+            {"subnetIdentifier": "subnet-0a1b2c3d4e5f60302", "subnetAvailabilityZone": {"name": "ap-northeast-1c"}, "subnetOutpost": {}, "subnetStatus": "Active"}
+          ]
+        },
+        "vpcSecurityGroups": [{"vpcSecurityGroupId": "sg-0a1b2c3d4e5f6rds0", "status": "active"}],
+        "dBParameterGroups": [{"dBParameterGroupName": "prod-aurora-params", "parameterApplyStatus": "in-sync"}],
+        "cACertificateIdentifier": "rds-ca-rsa2048-g1",
+        "performanceInsightsEnabled": true,
+        "deletionProtection": true,
+        "associatedRoles": [],
+        "tagList": [{"key": "Name", "value": "prod-aurora-writer"}, {"key": "Environment", "value": "Production"}]
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "prod-app-data-bucket-123456789012",
+      "arn": "arn:aws:s3:::prod-app-data-bucket-123456789012",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "d7e8f9a0-b1c2-3456-7890-123456789012",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::S3::Bucket",
+      "awsRegion": "ap-northeast-1",
+      "resourceCreationTime": "2024-03-01T00:00:00.000Z",
+      "tags": {"Name": "prod-app-data", "Environment": "Production"},
+      "supplementaryConfiguration": {
+        "BucketNotificationConfiguration": {"configurations": {}},
+        "BucketLifecycleConfiguration": {"rules": [{"id": "archive-old-data", "status": "Enabled", "filter": {"prefix": "archive/"}, "transitions": [{"days": 90, "storageClass": "GLACIER"}]}]},
+        "IsRequesterPaysEnabled": false,
+        "BucketTaggingConfiguration": {"tagSets": [{"tags": {"Name": "prod-app-data", "Environment": "Production"}}]}
+      },
+      "relationships": [],
+      "configuration": {
+        "name": "prod-app-data-bucket-123456789012",
+        "owner": {"displayName": "aws-account-owner", "id": "a1b2c3d4e5f678901234567890abcdef1234567890abcdef1234567890abcdef"},
+        "creationDate": "2024-03-01T00:00:00.000Z",
+        "versioningConfiguration": {"status": "Enabled"},
+        "bucketEncryptionConfiguration": {
+          "rules": [{"applyServerSideEncryptionByDefault": {"sseAlgorithm": "aws:kms", "kmsMasterKeyID": "arn:aws:kms:ap-northeast-1:123456789012:key/a1b2c3d4-e5f6-7890-abcd-ef1234567890"}, "bucketKeyEnabled": true}]
+        },
+        "publicAccessBlockConfiguration": {
+          "blockPublicAcls": true,
+          "ignorePublicAcls": true,
+          "blockPublicPolicy": true,
+          "restrictPublicBuckets": true
+        },
+        "bucketPolicy": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "AllowAppServersAccess",
+              "Effect": "Allow",
+              "Principal": {"AWS": "arn:aws:iam::123456789012:role/prod-app-role"},
+              "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
+              "Resource": ["arn:aws:s3:::prod-app-data-bucket-123456789012", "arn:aws:s3:::prod-app-data-bucket-123456789012/*"]
+            },
+            {
+              "Sid": "DenyInsecureTransport",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:*",
+              "Resource": ["arn:aws:s3:::prod-app-data-bucket-123456789012", "arn:aws:s3:::prod-app-data-bucket-123456789012/*"],
+              "Condition": {"Bool": {"aws:SecureTransport": "false"}}
+            }
+          ]
+        }
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "sg-0a1b2c3d4e5f6alb0",
+      "arn": "arn:aws:ec2:ap-northeast-1:123456789012:security-group/sg-0a1b2c3d4e5f6alb0",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "e8f9a0b1-c2d3-4567-8901-234567890123",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::SecurityGroup",
+      "awsRegion": "ap-northeast-1",
+      "resourceCreationTime": "2024-04-01T00:10:00.000Z",
+      "tags": {"Name": "prod-alb-sg"},
+      "relationships": [
+        {"resourceId": "vpc-0a1b2c3d4e5f60001", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "groupId": "sg-0a1b2c3d4e5f6alb0",
+        "groupName": "prod-alb-sg",
+        "description": "Security group for production ALB - allows HTTP/HTTPS from Internet",
+        "ownerId": "123456789012",
+        "vpcId": "vpc-0a1b2c3d4e5f60001",
+        "ipPermissions": [
+          {
+            "ipProtocol": "tcp",
+            "fromPort": 443,
+            "toPort": 443,
+            "ipRanges": [{"cidrIp": "0.0.0.0/0", "description": "HTTPS from Internet"}],
+            "ipv6Ranges": [{"cidrIpv6": "::/0", "description": "HTTPS from Internet IPv6"}],
+            "prefixListIds": [],
+            "userIdGroupPairs": []
+          },
+          {
+            "ipProtocol": "tcp",
+            "fromPort": 80,
+            "toPort": 80,
+            "ipRanges": [{"cidrIp": "0.0.0.0/0", "description": "HTTP redirect to HTTPS"}],
+            "ipv6Ranges": [{"cidrIpv6": "::/0", "description": "HTTP redirect IPv6"}],
+            "prefixListIds": [],
+            "userIdGroupPairs": []
+          }
+        ],
+        "ipPermissionsEgress": [
+          {
+            "ipProtocol": "tcp",
+            "fromPort": 80,
+            "toPort": 80,
+            "ipRanges": [],
+            "ipv6Ranges": [],
+            "prefixListIds": [],
+            "userIdGroupPairs": [{"userId": "123456789012", "groupId": "sg-0a1b2c3d4e5f6web0", "description": "To Web servers port 80"}]
+          }
+        ]
+      }
+    },
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "sg-0a1b2c3d4e5f6web0",
+      "arn": "arn:aws:ec2:ap-northeast-1:123456789012:security-group/sg-0a1b2c3d4e5f6web0",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "f9a0b1c2-d3e4-5678-9012-345678901234",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::SecurityGroup",
+      "awsRegion": "ap-northeast-1",
+      "resourceCreationTime": "2024-04-01T00:11:00.000Z",
+      "tags": {"Name": "prod-web-sg"},
+      "relationships": [
+        {"resourceId": "vpc-0a1b2c3d4e5f60001", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "groupId": "sg-0a1b2c3d4e5f6web0",
+        "groupName": "prod-web-sg",
+        "description": "Security group for Nginx web servers",
+        "ownerId": "123456789012",
+        "vpcId": "vpc-0a1b2c3d4e5f60001",
+        "ipPermissions": [
+          {
+            "ipProtocol": "tcp",
+            "fromPort": 80,
+            "toPort": 80,
+            "ipRanges": [],
+            "ipv6Ranges": [],
+            "prefixListIds": [],
+            "userIdGroupPairs": [{"userId": "123456789012", "groupId": "sg-0a1b2c3d4e5f6alb0", "description": "From ALB only"}]
+          }
+        ],
+        "ipPermissionsEgress": [
+          {
+            "ipProtocol": "tcp",
+            "fromPort": 8080,
+            "toPort": 8080,
+            "ipRanges": [],
+            "ipv6Ranges": [],
+            "prefixListIds": [],
+            "userIdGroupPairs": [{"userId": "123456789012", "groupId": "sg-0a1b2c3d4e5f6app0", "description": "To App servers"}]
+          },
+          {
+            "ipProtocol": "tcp",
+            "fromPort": 443,
+            "toPort": 443,
+            "ipRanges": [{"cidrIp": "0.0.0.0/0", "description": "HTTPS outbound via NAT"}],
+            "ipv6Ranges": [],
+            "prefixListIds": [],
+            "userIdGroupPairs": []
+          }
+        ]
+      }
+    },
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "sg-0a1b2c3d4e5f6app0",
+      "arn": "arn:aws:ec2:ap-northeast-1:123456789012:security-group/sg-0a1b2c3d4e5f6app0",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "a0b1c2d3-e4f5-6789-0123-456789012345",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::SecurityGroup",
+      "awsRegion": "ap-northeast-1",
+      "resourceCreationTime": "2024-04-01T00:12:00.000Z",
+      "tags": {"Name": "prod-app-sg"},
+      "relationships": [
+        {"resourceId": "vpc-0a1b2c3d4e5f60001", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "groupId": "sg-0a1b2c3d4e5f6app0",
+        "groupName": "prod-app-sg",
+        "description": "Security group for application servers (Spring Boot)",
+        "ownerId": "123456789012",
+        "vpcId": "vpc-0a1b2c3d4e5f60001",
+        "ipPermissions": [
+          {
+            "ipProtocol": "tcp",
+            "fromPort": 8080,
+            "toPort": 8080,
+            "ipRanges": [],
+            "ipv6Ranges": [],
+            "prefixListIds": [],
+            "userIdGroupPairs": [{"userId": "123456789012", "groupId": "sg-0a1b2c3d4e5f6web0", "description": "From Web servers only"}]
+          }
+        ],
+        "ipPermissionsEgress": [
+          {
+            "ipProtocol": "tcp",
+            "fromPort": 3306,
+            "toPort": 3306,
+            "ipRanges": [],
+            "ipv6Ranges": [],
+            "prefixListIds": [],
+            "userIdGroupPairs": [{"userId": "123456789012", "groupId": "sg-0a1b2c3d4e5f6rds0", "description": "To Aurora MySQL"}]
+          },
+          {
+            "ipProtocol": "tcp",
+            "fromPort": 443,
+            "toPort": 443,
+            "ipRanges": [{"cidrIp": "0.0.0.0/0", "description": "HTTPS to S3 and external APIs via NAT"}],
+            "ipv6Ranges": [],
+            "prefixListIds": [],
+            "userIdGroupPairs": []
+          }
+        ]
+      }
+    },
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "sg-0a1b2c3d4e5f6rds0",
+      "arn": "arn:aws:ec2:ap-northeast-1:123456789012:security-group/sg-0a1b2c3d4e5f6rds0",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "b1c2d3e4-f5a6-7890-1234-567890123456",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::SecurityGroup",
+      "awsRegion": "ap-northeast-1",
+      "resourceCreationTime": "2024-04-01T00:13:00.000Z",
+      "tags": {"Name": "prod-rds-sg"},
+      "relationships": [
+        {"resourceId": "vpc-0a1b2c3d4e5f60001", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "groupId": "sg-0a1b2c3d4e5f6rds0",
+        "groupName": "prod-rds-sg",
+        "description": "Security group for Aurora MySQL - App servers only",
+        "ownerId": "123456789012",
+        "vpcId": "vpc-0a1b2c3d4e5f60001",
+        "ipPermissions": [
+          {
+            "ipProtocol": "tcp",
+            "fromPort": 3306,
+            "toPort": 3306,
+            "ipRanges": [],
+            "ipv6Ranges": [],
+            "prefixListIds": [],
+            "userIdGroupPairs": [{"userId": "123456789012", "groupId": "sg-0a1b2c3d4e5f6app0", "description": "From App servers only"}]
+          }
+        ],
+        "ipPermissionsEgress": []
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "rtb-0a1b2c3d4e5f6pub0",
+      "arn": "arn:aws:ec2:ap-northeast-1:123456789012:route-table/rtb-0a1b2c3d4e5f6pub0",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "c2d3e4f5-a6b7-8901-2345-678901234567",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::RouteTable",
+      "awsRegion": "ap-northeast-1",
+      "resourceCreationTime": "2024-04-01T00:06:00.000Z",
+      "tags": {"Name": "prod-public-rtb"},
+      "relationships": [
+        {"resourceId": "vpc-0a1b2c3d4e5f60001", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"},
+        {"resourceId": "subnet-0a1b2c3d4e5f60101", "resourceType": "AWS::EC2::Subnet", "name": "Is associated with Subnet"},
+        {"resourceId": "subnet-0a1b2c3d4e5f60102", "resourceType": "AWS::EC2::Subnet", "name": "Is associated with Subnet"}
+      ],
+      "configuration": {
+        "routeTableId": "rtb-0a1b2c3d4e5f6pub0",
+        "vpcId": "vpc-0a1b2c3d4e5f60001",
+        "routes": [
+          {"destinationCidrBlock": "10.1.0.0/16", "gatewayId": "local", "state": "active", "origin": "CreateRouteTable"},
+          {"destinationCidrBlock": "0.0.0.0/0", "gatewayId": "igw-0a1b2c3d4e5f60010", "state": "active", "origin": "CreateRoute"}
+        ],
+        "associations": [
+          {"routeTableAssociationId": "rtbassoc-0a1b2cpub1a", "subnetId": "subnet-0a1b2c3d4e5f60101", "main": false, "associationState": {"state": "associated"}},
+          {"routeTableAssociationId": "rtbassoc-0a1b2cpub1c", "subnetId": "subnet-0a1b2c3d4e5f60102", "main": false, "associationState": {"state": "associated"}}
+        ],
+        "propagatingVgws": [],
+        "ownerId": "123456789012"
+      }
+    },
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "rtb-0a1b2c3d4e5f6prv0",
+      "arn": "arn:aws:ec2:ap-northeast-1:123456789012:route-table/rtb-0a1b2c3d4e5f6prv0",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "d3e4f5a6-b7c8-9012-3456-789012345678",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::RouteTable",
+      "awsRegion": "ap-northeast-1",
+      "resourceCreationTime": "2024-04-01T00:07:00.000Z",
+      "tags": {"Name": "prod-private-rtb"},
+      "relationships": [
+        {"resourceId": "vpc-0a1b2c3d4e5f60001", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"},
+        {"resourceId": "subnet-0a1b2c3d4e5f60201", "resourceType": "AWS::EC2::Subnet", "name": "Is associated with Subnet"},
+        {"resourceId": "subnet-0a1b2c3d4e5f60202", "resourceType": "AWS::EC2::Subnet", "name": "Is associated with Subnet"}
+      ],
+      "configuration": {
+        "routeTableId": "rtb-0a1b2c3d4e5f6prv0",
+        "vpcId": "vpc-0a1b2c3d4e5f60001",
+        "routes": [
+          {"destinationCidrBlock": "10.1.0.0/16", "gatewayId": "local", "state": "active", "origin": "CreateRouteTable"},
+          {"destinationCidrBlock": "0.0.0.0/0", "natGatewayId": "nat-0a1b2c3d4e5f60020", "state": "active", "origin": "CreateRoute"}
+        ],
+        "associations": [
+          {"routeTableAssociationId": "rtbassoc-0a1b2cprv1a", "subnetId": "subnet-0a1b2c3d4e5f60201", "main": false, "associationState": {"state": "associated"}},
+          {"routeTableAssociationId": "rtbassoc-0a1b2cprv1c", "subnetId": "subnet-0a1b2c3d4e5f60202", "main": false, "associationState": {"state": "associated"}}
+        ],
+        "propagatingVgws": [],
+        "ownerId": "123456789012"
+      }
+    },
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "rtb-0a1b2c3d4e5f6iso0",
+      "arn": "arn:aws:ec2:ap-northeast-1:123456789012:route-table/rtb-0a1b2c3d4e5f6iso0",
+      "accountId": "123456789012",
+      "configurationItemCaptureTime": "2025-06-15T09:30:00.000Z",
+      "configurationStateID": "e4f5a6b7-c8d9-0123-4567-890123456789",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::RouteTable",
+      "awsRegion": "ap-northeast-1",
+      "resourceCreationTime": "2024-04-01T00:08:00.000Z",
+      "tags": {"Name": "prod-isolated-rtb"},
+      "relationships": [
+        {"resourceId": "vpc-0a1b2c3d4e5f60001", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"},
+        {"resourceId": "subnet-0a1b2c3d4e5f60301", "resourceType": "AWS::EC2::Subnet", "name": "Is associated with Subnet"},
+        {"resourceId": "subnet-0a1b2c3d4e5f60302", "resourceType": "AWS::EC2::Subnet", "name": "Is associated with Subnet"}
+      ],
+      "configuration": {
+        "routeTableId": "rtb-0a1b2c3d4e5f6iso0",
+        "vpcId": "vpc-0a1b2c3d4e5f60001",
+        "routes": [
+          {"destinationCidrBlock": "10.1.0.0/16", "gatewayId": "local", "state": "active", "origin": "CreateRouteTable"}
+        ],
+        "associations": [
+          {"routeTableAssociationId": "rtbassoc-0a1b2ciso1a", "subnetId": "subnet-0a1b2c3d4e5f60301", "main": false, "associationState": {"state": "associated"}},
+          {"routeTableAssociationId": "rtbassoc-0a1b2ciso1c", "subnetId": "subnet-0a1b2c3d4e5f60302", "main": false, "associationState": {"state": "associated"}}
+        ],
+        "propagatingVgws": [],
+        "ownerId": "123456789012"
+      }
+    }
+  ]
+}
