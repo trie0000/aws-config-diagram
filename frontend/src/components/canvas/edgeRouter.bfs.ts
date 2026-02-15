@@ -31,7 +31,6 @@ export interface PathCandidate {
 
 export const MARGIN = 8
 const STEM_LEN = 20
-const OVERLAP_TOL = 4
 
 // ============================================================
 // Segment-Rect intersection
@@ -75,55 +74,6 @@ function countObstacleHits(path: Point[], obstacles: Rect[], margin: number): nu
     }
   }
   return hits
-}
-
-// ============================================================
-// Used Segments (overlap tracking)
-// ============================================================
-
-export class UsedSegments {
-  private hSegs = new Map<number, Array<{ min: number; max: number }>>()
-  private vSegs = new Map<number, Array<{ min: number; max: number }>>()
-
-  add(a: Point, b: Point): void {
-    const ax = Math.round(a.x), ay = Math.round(a.y)
-    const bx = Math.round(b.x), by = Math.round(b.y)
-    if (ay === by) {
-      const list = this.hSegs.get(ay) ?? []
-      list.push({ min: Math.min(ax, bx), max: Math.max(ax, bx) })
-      this.hSegs.set(ay, list)
-    } else if (ax === bx) {
-      const list = this.vSegs.get(ax) ?? []
-      list.push({ min: Math.min(ay, by), max: Math.max(ay, by) })
-      this.vSegs.set(ax, list)
-    }
-  }
-
-  overlapLength(a: Point, b: Point): number {
-    const ax = Math.round(a.x), ay = Math.round(a.y)
-    const bx = Math.round(b.x), by = Math.round(b.y)
-    let total = 0
-    if (ay === by) {
-      const min = Math.min(ax, bx), max = Math.max(ax, bx)
-      for (const [y, segs] of this.hSegs) {
-        if (Math.abs(y - ay) > OVERLAP_TOL) continue
-        for (const seg of segs) {
-          const oLen = Math.min(max, seg.max) - Math.max(min, seg.min)
-          if (oLen > 0) total += oLen
-        }
-      }
-    } else if (ax === bx) {
-      const min = Math.min(ay, by), max = Math.max(ay, by)
-      for (const [x, segs] of this.vSegs) {
-        if (Math.abs(x - ax) > OVERLAP_TOL) continue
-        for (const seg of segs) {
-          const oLen = Math.min(max, seg.max) - Math.max(min, seg.min)
-          if (oLen > 0) total += oLen
-        }
-      }
-    }
-    return total
-  }
 }
 
 // ============================================================
@@ -257,16 +207,3 @@ export function pathLength(path: Point[]): number {
   return len
 }
 
-export function pathOverlapLen(path: Point[], usedSegs: UsedSegments): number {
-  let total = 0
-  for (let i = 0; i < path.length - 1; i++) {
-    total += usedSegs.overlapLength(path[i], path[i + 1])
-  }
-  return total
-}
-
-export function recordUsedSegments(path: Point[], usedSegs: UsedSegments): void {
-  for (let i = 0; i < path.length - 1; i++) {
-    usedSegs.add(path[i], path[i + 1])
-  }
-}
