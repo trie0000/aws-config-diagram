@@ -66,26 +66,38 @@ const PORT_GAP = 12
 class PortTracker {
   private counts = new Map<string, number>()
 
-  private calcOffset(n: number, side: Side, icon: IconRect): number {
+  private calcOffset(n: number, side: Side, icon: IconRect, flip = false): number {
     if (n === 0) return 0
     const rank = Math.ceil(n / 2)
-    const sign = n % 2 === 1 ? -1 : 1
+    const baseSign = n % 2 === 1 ? -1 : 1
+    const sign = flip ? -baseSign : baseSign
     const offset = sign * rank * PORT_GAP
     const isHoriz = side === 'left' || side === 'right'
     const halfEdge = (isHoriz ? icon.h : icon.w) / 2 - 2
     return Math.max(-halfEdge, Math.min(halfEdge, offset))
   }
 
-  peekOffset(nodeId: string, side: Side, icon: IconRect): number {
+  /** 次に割り当てるoffset候補を返す（正と負の両方向） */
+  peekOffsets(nodeId: string, side: Side, icon: IconRect): number[] {
     const key = `${nodeId}:${side}`
     const n = this.counts.get(key) ?? 0
-    return this.calcOffset(n, side, icon)
+    const primary = this.calcOffset(n, side, icon)
+    if (n === 0) return [primary]  // 中央は1つだけ
+    const flipped = this.calcOffset(n, side, icon, true)
+    if (flipped === primary) return [primary]
+    return [primary, flipped]
   }
 
-  commitOffset(nodeId: string, side: Side, icon: IconRect): void {
+  commitOffset(nodeId: string, side: Side, icon: IconRect, offset: number): void {
     const key = `${nodeId}:${side}`
     const n = this.counts.get(key) ?? 0
     this.counts.set(key, n + 1)
+    // offset方向が反転していたら追加でカウントを進める
+    const expected = this.calcOffset(n, side, icon)
+    if (Math.abs(offset - expected) > 0.5) {
+      // 反転offset採用 → 実質2つ分のスロットを使う
+      this.counts.set(key, n + 2)
+    }
   }
 }
 
@@ -161,32 +173,41 @@ export function routeAllEdges(
     let bestCross = Infinity
     let bestLen = Infinity
 
+    let bestSrcOffset = 0
+    let bestDstOffset = 0
+
     for (const { srcSide, dstSide } of SIDE_COMBINATIONS) {
-      const srcOffset = portTracker.peekOffset(srcIcon.nodeId, srcSide, srcIcon)
-      const dstOffset = portTracker.peekOffset(dstIcon.nodeId, dstSide, dstIcon)
+      const srcOffsets = portTracker.peekOffsets(srcIcon.nodeId, srcSide, srcIcon)
+      const dstOffsets = portTracker.peekOffsets(dstIcon.nodeId, dstSide, dstIcon)
 
-      const srcPt = sidePoint(srcIcon, srcSide, srcOffset)
-      const dstPt = sidePoint(dstIcon, dstSide, dstOffset)
+      for (const srcOffset of srcOffsets) {
+        for (const dstOffset of dstOffsets) {
+          const srcPt = sidePoint(srcIcon, srcSide, srcOffset)
+          const dstPt = sidePoint(dstIcon, dstSide, dstOffset)
 
-      const candidates = generateCandidatePaths(srcPt, srcSide, dstPt, dstSide, obstacles)
+          const candidates = generateCandidatePaths(srcPt, srcSide, dstPt, dstSide, obstacles)
 
-      for (const { path, hits } of candidates) {
-        const bends = countBends(path)
-        const cross = countCrossings(path, existingPaths)
-        const len = pathLength(path)
+          for (const { path, hits } of candidates) {
+            const bends = countBends(path)
+            const cross = countCrossings(path, existingPaths)
+            const len = pathLength(path)
 
-        // 選択基準: hits少 → bends少 → cross少 → len短
-        if (hits < bestHits ||
-            (hits === bestHits && bends < bestBends) ||
-            (hits === bestHits && bends === bestBends && cross < bestCross) ||
-            (hits === bestHits && bends === bestBends && cross === bestCross && len < bestLen)) {
-          bestPath = path
-          bestSrcSide = srcSide
-          bestDstSide = dstSide
-          bestHits = hits
-          bestBends = bends
-          bestCross = cross
-          bestLen = len
+            // 選択基準: hits少 → bends少 → cross少 → len短
+            if (hits < bestHits ||
+                (hits === bestHits && bends < bestBends) ||
+                (hits === bestHits && bends === bestBends && cross < bestCross) ||
+                (hits === bestHits && bends === bestBends && cross === bestCross && len < bestLen)) {
+              bestPath = path
+              bestSrcSide = srcSide
+              bestDstSide = dstSide
+              bestSrcOffset = srcOffset
+              bestDstOffset = dstOffset
+              bestHits = hits
+              bestBends = bends
+              bestCross = cross
+              bestLen = len
+            }
+          }
         }
       }
     }
@@ -196,8 +217,8 @@ export function routeAllEdges(
       bestPath = []
     }
 
-    portTracker.commitOffset(srcIcon.nodeId, bestSrcSide, srcIcon)
-    portTracker.commitOffset(dstIcon.nodeId, bestDstSide, dstIcon)
+    portTracker.commitOffset(srcIcon.nodeId, bestSrcSide, srcIcon, bestSrcOffset)
+    portTracker.commitOffset(dstIcon.nodeId, bestDstSide, dstIcon, bestDstOffset)
 
     existingPaths.push(bestPath)
 

@@ -232,7 +232,7 @@ function segmentsCross(a1: Point, a2: Point, b1: Point, b2: Point): boolean {
   const vMinY = Math.min(v1.y, v2.y)
   const vMaxY = Math.max(v1.y, v2.y)
 
-  return vX > hMinX && vX < hMaxX && hY > vMinY && hY < vMaxY
+  return vX > hMinX && vX < hMaxX && hY >= vMinY && hY <= vMaxY
 }
 
 export function countCrossings(path: Point[], existingPaths: Point[][]): number {
