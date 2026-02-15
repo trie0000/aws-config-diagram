@@ -29,7 +29,7 @@ export interface PathCandidate {
 // Constants
 // ============================================================
 
-const MARGIN = 8
+export const MARGIN = 8
 const STEM_LEN = 20
 const OVERLAP_TOL = 4
 
@@ -37,7 +37,7 @@ const OVERLAP_TOL = 4
 // Segment-Rect intersection
 // ============================================================
 
-function segHitsRect(ax: number, ay: number, bx: number, by: number, r: Rect, margin: number): boolean {
+export function segHitsRect(ax: number, ay: number, bx: number, by: number, r: Rect, margin: number): boolean {
   const rx1 = r.x - margin
   const ry1 = r.y - margin
   const rx2 = r.x + r.w + margin
