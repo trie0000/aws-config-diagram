@@ -1,0 +1,873 @@
+{
+  "fileVersion": "1.0",
+  "requestId": "tabelog-audit-001",
+  "configurationItems": [
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "vpc-tabelog-prod",
+      "arn": "arn:aws:ec2:ap-northeast-1:111122223333:vpc/vpc-tabelog-prod",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::VPC",
+      "awsRegion": "ap-northeast-1",
+      "tags": {
+        "Name": "Tabelog-Production-VPC",
+        "Environment": "Production",
+        "Service": "tabelog"
+      },
+      "relationships": [
+        {"resourceId": "igw-tabelog01", "resourceType": "AWS::EC2::InternetGateway", "name": "Is attached to InternetGateway"},
+        {"resourceId": "subnet-pub-web-1a", "resourceType": "AWS::EC2::Subnet", "name": "Contains Subnet"},
+        {"resourceId": "subnet-pub-web-1c", "resourceType": "AWS::EC2::Subnet", "name": "Contains Subnet"},
+        {"resourceId": "subnet-priv-app-1a", "resourceType": "AWS::EC2::Subnet", "name": "Contains Subnet"},
+        {"resourceId": "subnet-priv-app-1c", "resourceType": "AWS::EC2::Subnet", "name": "Contains Subnet"},
+        {"resourceId": "subnet-priv-db-1a", "resourceType": "AWS::EC2::Subnet", "name": "Contains Subnet"},
+        {"resourceId": "subnet-priv-db-1c", "resourceType": "AWS::EC2::Subnet", "name": "Contains Subnet"}
+      ],
+      "configuration": {
+        "vpcId": "vpc-tabelog-prod",
+        "cidrBlock": "10.0.0.0/16",
+        "state": "available",
+        "isDefault": false,
+        "instanceTenancy": "default",
+        "cidrBlockAssociationSet": [
+          {"cidrBlock": "10.0.0.0/16", "cidrBlockState": {"state": "associated"}}
+        ]
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "igw-tabelog01",
+      "arn": "arn:aws:ec2:ap-northeast-1:111122223333:internet-gateway/igw-tabelog01",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::InternetGateway",
+      "awsRegion": "ap-northeast-1",
+      "tags": {"Name": "Tabelog-IGW"},
+      "relationships": [
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is attached to VPC"}
+      ],
+      "configuration": {
+        "internetGatewayId": "igw-tabelog01",
+        "attachments": [{"vpcId": "vpc-tabelog-prod", "state": "available"}]
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "subnet-pub-web-1a",
+      "arn": "arn:aws:ec2:ap-northeast-1:111122223333:subnet/subnet-pub-web-1a",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::Subnet",
+      "awsRegion": "ap-northeast-1",
+      "availibilityZone": "ap-northeast-1a",
+      "tags": {"Name": "Public-Web-Subnet-AZ-a", "Tier": "Public"},
+      "relationships": [
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "subnetId": "subnet-pub-web-1a",
+        "vpcId": "vpc-tabelog-prod",
+        "cidrBlock": "10.0.1.0/24",
+        "availabilityZone": "ap-northeast-1a",
+        "mapPublicIpOnLaunch": true,
+        "state": "available"
+      }
+    },
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "subnet-pub-web-1c",
+      "arn": "arn:aws:ec2:ap-northeast-1:111122223333:subnet/subnet-pub-web-1c",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::Subnet",
+      "awsRegion": "ap-northeast-1",
+      "availibilityZone": "ap-northeast-1c",
+      "tags": {"Name": "Public-Web-Subnet-AZ-c", "Tier": "Public"},
+      "relationships": [
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "subnetId": "subnet-pub-web-1c",
+        "vpcId": "vpc-tabelog-prod",
+        "cidrBlock": "10.0.2.0/24",
+        "availabilityZone": "ap-northeast-1c",
+        "mapPublicIpOnLaunch": true,
+        "state": "available"
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "subnet-priv-app-1a",
+      "arn": "arn:aws:ec2:ap-northeast-1:111122223333:subnet/subnet-priv-app-1a",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::Subnet",
+      "awsRegion": "ap-northeast-1",
+      "availibilityZone": "ap-northeast-1a",
+      "tags": {"Name": "Private-App-Subnet-AZ-a", "Tier": "Private"},
+      "relationships": [
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "subnetId": "subnet-priv-app-1a",
+        "vpcId": "vpc-tabelog-prod",
+        "cidrBlock": "10.0.10.0/24",
+        "availabilityZone": "ap-northeast-1a",
+        "mapPublicIpOnLaunch": false,
+        "state": "available"
+      }
+    },
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "subnet-priv-app-1c",
+      "arn": "arn:aws:ec2:ap-northeast-1:111122223333:subnet/subnet-priv-app-1c",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::Subnet",
+      "awsRegion": "ap-northeast-1",
+      "availibilityZone": "ap-northeast-1c",
+      "tags": {"Name": "Private-App-Subnet-AZ-c", "Tier": "Private"},
+      "relationships": [
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "subnetId": "subnet-priv-app-1c",
+        "vpcId": "vpc-tabelog-prod",
+        "cidrBlock": "10.0.11.0/24",
+        "availabilityZone": "ap-northeast-1c",
+        "mapPublicIpOnLaunch": false,
+        "state": "available"
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "subnet-priv-db-1a",
+      "arn": "arn:aws:ec2:ap-northeast-1:111122223333:subnet/subnet-priv-db-1a",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::Subnet",
+      "awsRegion": "ap-northeast-1",
+      "availibilityZone": "ap-northeast-1a",
+      "tags": {"Name": "Private-DB-Subnet-AZ-a", "Tier": "Isolated"},
+      "relationships": [
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "subnetId": "subnet-priv-db-1a",
+        "vpcId": "vpc-tabelog-prod",
+        "cidrBlock": "10.0.20.0/24",
+        "availabilityZone": "ap-northeast-1a",
+        "mapPublicIpOnLaunch": false,
+        "state": "available"
+      }
+    },
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "subnet-priv-db-1c",
+      "arn": "arn:aws:ec2:ap-northeast-1:111122223333:subnet/subnet-priv-db-1c",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::Subnet",
+      "awsRegion": "ap-northeast-1",
+      "availibilityZone": "ap-northeast-1c",
+      "tags": {"Name": "Private-DB-Subnet-AZ-c", "Tier": "Isolated"},
+      "relationships": [
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "subnetId": "subnet-priv-db-1c",
+        "vpcId": "vpc-tabelog-prod",
+        "cidrBlock": "10.0.21.0/24",
+        "availabilityZone": "ap-northeast-1c",
+        "mapPublicIpOnLaunch": false,
+        "state": "available"
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "nat-tabelog-1a",
+      "arn": "arn:aws:ec2:ap-northeast-1:111122223333:natgateway/nat-tabelog-1a",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::NatGateway",
+      "awsRegion": "ap-northeast-1",
+      "tags": {"Name": "Tabelog-NAT-GW-AZ-a"},
+      "relationships": [
+        {"resourceId": "subnet-pub-web-1a", "resourceType": "AWS::EC2::Subnet", "name": "Is contained in Subnet"},
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "natGatewayId": "nat-tabelog-1a",
+        "subnetId": "subnet-pub-web-1a",
+        "vpcId": "vpc-tabelog-prod",
+        "state": "available",
+        "connectivityType": "public",
+        "natGatewayAddresses": [
+          {"allocationId": "eipalloc-nat01", "networkInterfaceId": "eni-nat01", "privateIp": "10.0.1.100", "publicIp": "54.199.10.1"}
+        ]
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "arn:aws:elasticloadbalancing:ap-northeast-1:111122223333:loadbalancer/app/tabelog-alb/aabbccdd11223344",
+      "arn": "arn:aws:elasticloadbalancing:ap-northeast-1:111122223333:loadbalancer/app/tabelog-alb/aabbccdd11223344",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+      "awsRegion": "ap-northeast-1",
+      "tags": {"Name": "Tabelog-ALB"},
+      "relationships": [
+        {"resourceId": "subnet-pub-web-1a", "resourceType": "AWS::EC2::Subnet", "name": "Is in Subnet"},
+        {"resourceId": "subnet-pub-web-1c", "resourceType": "AWS::EC2::Subnet", "name": "Is in Subnet"},
+        {"resourceId": "sg-alb-tabelog", "resourceType": "AWS::EC2::SecurityGroup", "name": "Is associated with SecurityGroup"},
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is in VPC"}
+      ],
+      "configuration": {
+        "loadBalancerName": "tabelog-alb",
+        "dNSName": "tabelog-alb-aabbccdd.ap-northeast-1.elb.amazonaws.com",
+        "type": "application",
+        "scheme": "internet-facing",
+        "state": {"code": "active"},
+        "vpcId": "vpc-tabelog-prod",
+        "availabilityZones": [
+          {"zoneName": "ap-northeast-1a", "subnetId": "subnet-pub-web-1a"},
+          {"zoneName": "ap-northeast-1c", "subnetId": "subnet-pub-web-1c"}
+        ],
+        "securityGroups": ["sg-alb-tabelog"],
+        "ipAddressType": "ipv4"
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "arn:aws:wafv2:ap-northeast-1:111122223333:regional/webacl/tabelog-waf/xxxx-yyyy-zzzz",
+      "arn": "arn:aws:wafv2:ap-northeast-1:111122223333:regional/webacl/tabelog-waf/xxxx-yyyy-zzzz",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::WAFv2::WebACL",
+      "awsRegion": "ap-northeast-1",
+      "tags": {"Name": "Tabelog-WAF"},
+      "relationships": [
+        {"resourceId": "arn:aws:elasticloadbalancing:ap-northeast-1:111122223333:loadbalancer/app/tabelog-alb/aabbccdd11223344", "resourceType": "AWS::ElasticLoadBalancingV2::LoadBalancer", "name": "Is associated with ALB"}
+      ],
+      "configuration": {
+        "name": "tabelog-waf",
+        "id": "xxxx-yyyy-zzzz",
+        "scope": "REGIONAL",
+        "defaultAction": {"allow": {}},
+        "rules": [
+          {
+            "name": "AWS-AWSManagedRulesCommonRuleSet",
+            "priority": 1,
+            "statement": {"managedRuleGroupStatement": {"vendorName": "AWS", "name": "AWSManagedRulesCommonRuleSet"}},
+            "overrideAction": {"none": {}},
+            "visibilityConfig": {"sampledRequestsEnabled": true, "cloudWatchMetricsEnabled": true, "metricName": "CommonRuleSet"}
+          },
+          {
+            "name": "AWS-AWSManagedRulesSQLiRuleSet",
+            "priority": 2,
+            "statement": {"managedRuleGroupStatement": {"vendorName": "AWS", "name": "AWSManagedRulesSQLiRuleSet"}},
+            "overrideAction": {"none": {}},
+            "visibilityConfig": {"sampledRequestsEnabled": true, "cloudWatchMetricsEnabled": true, "metricName": "SQLiRuleSet"}
+          },
+          {
+            "name": "RateLimit-1000",
+            "priority": 3,
+            "statement": {"rateBasedStatement": {"limit": 1000, "aggregateKeyType": "IP"}},
+            "action": {"block": {}},
+            "visibilityConfig": {"sampledRequestsEnabled": true, "cloudWatchMetricsEnabled": true, "metricName": "RateLimit"}
+          }
+        ],
+        "capacity": 700,
+        "associatedResources": [
+          "arn:aws:elasticloadbalancing:ap-northeast-1:111122223333:loadbalancer/app/tabelog-alb/aabbccdd11223344"
+        ]
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "i-web-1a",
+      "arn": "arn:aws:ec2:ap-northeast-1:111122223333:instance/i-web-1a",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::Instance",
+      "awsRegion": "ap-northeast-1",
+      "availibilityZone": "ap-northeast-1a",
+      "tags": {"Name": "Web-Server-1a", "Role": "WebServer"},
+      "relationships": [
+        {"resourceId": "subnet-pub-web-1a", "resourceType": "AWS::EC2::Subnet", "name": "Is contained in Subnet"},
+        {"resourceId": "sg-web-tabelog", "resourceType": "AWS::EC2::SecurityGroup", "name": "Is associated with SecurityGroup"},
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "instanceId": "i-web-1a",
+        "imageId": "ami-0abcdef1234567890",
+        "instanceType": "c5.xlarge",
+        "state": {"code": 16, "name": "running"},
+        "subnetId": "subnet-pub-web-1a",
+        "vpcId": "vpc-tabelog-prod",
+        "privateIpAddress": "10.0.1.10",
+        "publicIpAddress": null,
+        "securityGroups": [{"groupName": "Web-Server-SG", "groupId": "sg-web-tabelog"}],
+        "networkInterfaces": [
+          {
+            "networkInterfaceId": "eni-web1a",
+            "subnetId": "subnet-pub-web-1a",
+            "vpcId": "vpc-tabelog-prod",
+            "privateIpAddress": "10.0.1.10",
+            "groups": [{"groupName": "Web-Server-SG", "groupId": "sg-web-tabelog"}]
+          }
+        ]
+      }
+    },
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "i-web-1c",
+      "arn": "arn:aws:ec2:ap-northeast-1:111122223333:instance/i-web-1c",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::Instance",
+      "awsRegion": "ap-northeast-1",
+      "availibilityZone": "ap-northeast-1c",
+      "tags": {"Name": "Web-Server-1c", "Role": "WebServer"},
+      "relationships": [
+        {"resourceId": "subnet-pub-web-1c", "resourceType": "AWS::EC2::Subnet", "name": "Is contained in Subnet"},
+        {"resourceId": "sg-web-tabelog", "resourceType": "AWS::EC2::SecurityGroup", "name": "Is associated with SecurityGroup"},
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "instanceId": "i-web-1c",
+        "imageId": "ami-0abcdef1234567890",
+        "instanceType": "c5.xlarge",
+        "state": {"code": 16, "name": "running"},
+        "subnetId": "subnet-pub-web-1c",
+        "vpcId": "vpc-tabelog-prod",
+        "privateIpAddress": "10.0.2.10",
+        "publicIpAddress": null,
+        "securityGroups": [{"groupName": "Web-Server-SG", "groupId": "sg-web-tabelog"}],
+        "networkInterfaces": [
+          {
+            "networkInterfaceId": "eni-web1c",
+            "subnetId": "subnet-pub-web-1c",
+            "vpcId": "vpc-tabelog-prod",
+            "privateIpAddress": "10.0.2.10",
+            "groups": [{"groupName": "Web-Server-SG", "groupId": "sg-web-tabelog"}]
+          }
+        ]
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "i-app-1a",
+      "arn": "arn:aws:ec2:ap-northeast-1:111122223333:instance/i-app-1a",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::Instance",
+      "awsRegion": "ap-northeast-1",
+      "availibilityZone": "ap-northeast-1a",
+      "tags": {"Name": "App-Server-1a", "Role": "AppServer"},
+      "relationships": [
+        {"resourceId": "subnet-priv-app-1a", "resourceType": "AWS::EC2::Subnet", "name": "Is contained in Subnet"},
+        {"resourceId": "sg-app-tabelog", "resourceType": "AWS::EC2::SecurityGroup", "name": "Is associated with SecurityGroup"},
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "instanceId": "i-app-1a",
+        "imageId": "ami-0abcdef1234567890",
+        "instanceType": "c5.2xlarge",
+        "state": {"code": 16, "name": "running"},
+        "subnetId": "subnet-priv-app-1a",
+        "vpcId": "vpc-tabelog-prod",
+        "privateIpAddress": "10.0.10.10",
+        "publicIpAddress": null,
+        "securityGroups": [{"groupName": "App-Server-SG", "groupId": "sg-app-tabelog"}],
+        "networkInterfaces": [
+          {
+            "networkInterfaceId": "eni-app1a",
+            "subnetId": "subnet-priv-app-1a",
+            "vpcId": "vpc-tabelog-prod",
+            "privateIpAddress": "10.0.10.10",
+            "groups": [{"groupName": "App-Server-SG", "groupId": "sg-app-tabelog"}]
+          }
+        ]
+      }
+    },
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "i-app-1c",
+      "arn": "arn:aws:ec2:ap-northeast-1:111122223333:instance/i-app-1c",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::Instance",
+      "awsRegion": "ap-northeast-1",
+      "availibilityZone": "ap-northeast-1c",
+      "tags": {"Name": "App-Server-1c", "Role": "AppServer"},
+      "relationships": [
+        {"resourceId": "subnet-priv-app-1c", "resourceType": "AWS::EC2::Subnet", "name": "Is contained in Subnet"},
+        {"resourceId": "sg-app-tabelog", "resourceType": "AWS::EC2::SecurityGroup", "name": "Is associated with SecurityGroup"},
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "instanceId": "i-app-1c",
+        "imageId": "ami-0abcdef1234567890",
+        "instanceType": "c5.2xlarge",
+        "state": {"code": 16, "name": "running"},
+        "subnetId": "subnet-priv-app-1c",
+        "vpcId": "vpc-tabelog-prod",
+        "privateIpAddress": "10.0.11.10",
+        "publicIpAddress": null,
+        "securityGroups": [{"groupName": "App-Server-SG", "groupId": "sg-app-tabelog"}],
+        "networkInterfaces": [
+          {
+            "networkInterfaceId": "eni-app1c",
+            "subnetId": "subnet-priv-app-1c",
+            "vpcId": "vpc-tabelog-prod",
+            "privateIpAddress": "10.0.11.10",
+            "groups": [{"groupName": "App-Server-SG", "groupId": "sg-app-tabelog"}]
+          }
+        ]
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "db-tabelog-mysql-primary",
+      "arn": "arn:aws:rds:ap-northeast-1:111122223333:db:tabelog-mysql-primary",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::RDS::DBInstance",
+      "awsRegion": "ap-northeast-1",
+      "availibilityZone": "ap-northeast-1a",
+      "tags": {"Name": "Tabelog-MySQL-Primary", "Environment": "Production"},
+      "relationships": [
+        {"resourceId": "sg-rds-tabelog", "resourceType": "AWS::EC2::SecurityGroup", "name": "Is associated with SecurityGroup"},
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "dBInstanceIdentifier": "tabelog-mysql-primary",
+        "dBInstanceClass": "db.r6g.2xlarge",
+        "engine": "aurora-mysql",
+        "engineVersion": "8.0.mysql_aurora.3.04.0",
+        "dBInstanceStatus": "available",
+        "endpoint": {
+          "address": "tabelog-mysql-primary.cluster-abcdef.ap-northeast-1.rds.amazonaws.com",
+          "port": 3306
+        },
+        "multiAZ": true,
+        "availabilityZone": "ap-northeast-1a",
+        "dBSubnetGroup": {
+          "dBSubnetGroupName": "tabelog-db-subnet-group",
+          "vpcId": "vpc-tabelog-prod",
+          "subnets": [
+            {"subnetIdentifier": "subnet-priv-db-1a", "subnetAvailabilityZone": {"name": "ap-northeast-1a"}},
+            {"subnetIdentifier": "subnet-priv-db-1c", "subnetAvailabilityZone": {"name": "ap-northeast-1c"}}
+          ]
+        },
+        "vpcSecurityGroups": [{"vpcSecurityGroupId": "sg-rds-tabelog", "status": "active"}],
+        "publiclyAccessible": false,
+        "storageEncrypted": true
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "tabelog-data-bucket",
+      "arn": "arn:aws:s3:::tabelog-data-bucket",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::S3::Bucket",
+      "awsRegion": "ap-northeast-1",
+      "tags": {"Name": "Tabelog-Data-Bucket", "Environment": "Production"},
+      "relationships": [],
+      "configuration": {
+        "name": "tabelog-data-bucket",
+        "creationDate": "2024-01-15T00:00:00.000Z",
+        "versioningConfiguration": {"status": "Enabled"},
+        "bucketEncryptionConfiguration": {
+          "rules": [{"applyServerSideEncryptionByDefault": {"sseAlgorithm": "aws:kms"}}]
+        },
+        "publicAccessBlockConfiguration": {
+          "blockPublicAcls": true,
+          "ignorePublicAcls": true,
+          "blockPublicPolicy": true,
+          "restrictPublicBuckets": true
+        },
+        "bucketPolicy": {
+          "Statement": [
+            {
+              "Sid": "AllowAppServersOnly",
+              "Effect": "Allow",
+              "Principal": {"AWS": "arn:aws:iam::111122223333:role/tabelog-app-role"},
+              "Action": ["s3:GetObject", "s3:PutObject"],
+              "Resource": "arn:aws:s3:::tabelog-data-bucket/*"
+            }
+          ]
+        }
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "sg-alb-tabelog",
+      "arn": "arn:aws:ec2:ap-northeast-1:111122223333:security-group/sg-alb-tabelog",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::SecurityGroup",
+      "awsRegion": "ap-northeast-1",
+      "tags": {"Name": "ALB-SecurityGroup"},
+      "relationships": [
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "groupId": "sg-alb-tabelog",
+        "groupName": "ALB-SG",
+        "description": "Security group for Tabelog ALB - Internet facing",
+        "vpcId": "vpc-tabelog-prod",
+        "ipPermissions": [
+          {
+            "ipProtocol": "tcp", "fromPort": 443, "toPort": 443,
+            "ipRanges": [{"cidrIp": "0.0.0.0/0", "description": "HTTPS from Internet (via WAF)"}],
+            "ipv6Ranges": [{"cidrIpv6": "::/0", "description": "HTTPS from Internet IPv6"}],
+            "userIdGroupPairs": []
+          },
+          {
+            "ipProtocol": "tcp", "fromPort": 80, "toPort": 80,
+            "ipRanges": [{"cidrIp": "0.0.0.0/0", "description": "HTTP redirect to HTTPS"}],
+            "ipv6Ranges": [],
+            "userIdGroupPairs": []
+          }
+        ],
+        "ipPermissionsEgress": [
+          {
+            "ipProtocol": "tcp", "fromPort": 80, "toPort": 80,
+            "ipRanges": [],
+            "userIdGroupPairs": [{"groupId": "sg-web-tabelog", "description": "To Web Servers"}]
+          }
+        ]
+      }
+    },
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "sg-web-tabelog",
+      "arn": "arn:aws:ec2:ap-northeast-1:111122223333:security-group/sg-web-tabelog",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::SecurityGroup",
+      "awsRegion": "ap-northeast-1",
+      "tags": {"Name": "Web-Server-SecurityGroup"},
+      "relationships": [
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "groupId": "sg-web-tabelog",
+        "groupName": "Web-Server-SG",
+        "description": "Security group for Nginx Web Servers",
+        "vpcId": "vpc-tabelog-prod",
+        "ipPermissions": [
+          {
+            "ipProtocol": "tcp", "fromPort": 80, "toPort": 80,
+            "ipRanges": [],
+            "userIdGroupPairs": [{"groupId": "sg-alb-tabelog", "description": "From ALB only"}]
+          }
+        ],
+        "ipPermissionsEgress": [
+          {
+            "ipProtocol": "tcp", "fromPort": 8080, "toPort": 8080,
+            "ipRanges": [],
+            "userIdGroupPairs": [{"groupId": "sg-app-tabelog", "description": "To App Servers"}]
+          },
+          {
+            "ipProtocol": "tcp", "fromPort": 443, "toPort": 443,
+            "ipRanges": [{"cidrIp": "0.0.0.0/0", "description": "HTTPS outbound for package updates via NAT"}],
+            "userIdGroupPairs": []
+          }
+        ]
+      }
+    },
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "sg-app-tabelog",
+      "arn": "arn:aws:ec2:ap-northeast-1:111122223333:security-group/sg-app-tabelog",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::SecurityGroup",
+      "awsRegion": "ap-northeast-1",
+      "tags": {"Name": "App-Server-SecurityGroup"},
+      "relationships": [
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "groupId": "sg-app-tabelog",
+        "groupName": "App-Server-SG",
+        "description": "Security group for Application Servers (Ruby on Rails)",
+        "vpcId": "vpc-tabelog-prod",
+        "ipPermissions": [
+          {
+            "ipProtocol": "tcp", "fromPort": 8080, "toPort": 8080,
+            "ipRanges": [],
+            "userIdGroupPairs": [{"groupId": "sg-web-tabelog", "description": "From Web Servers only"}]
+          }
+        ],
+        "ipPermissionsEgress": [
+          {
+            "ipProtocol": "tcp", "fromPort": 3306, "toPort": 3306,
+            "ipRanges": [],
+            "userIdGroupPairs": [{"groupId": "sg-rds-tabelog", "description": "To RDS Aurora MySQL"}]
+          },
+          {
+            "ipProtocol": "tcp", "fromPort": 443, "toPort": 443,
+            "ipRanges": [{"cidrIp": "0.0.0.0/0", "description": "HTTPS to S3 / external APIs via NAT"}],
+            "userIdGroupPairs": []
+          }
+        ]
+      }
+    },
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "sg-rds-tabelog",
+      "arn": "arn:aws:ec2:ap-northeast-1:111122223333:security-group/sg-rds-tabelog",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::SecurityGroup",
+      "awsRegion": "ap-northeast-1",
+      "tags": {"Name": "RDS-SecurityGroup"},
+      "relationships": [
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"}
+      ],
+      "configuration": {
+        "groupId": "sg-rds-tabelog",
+        "groupName": "RDS-SG",
+        "description": "Security group for Aurora MySQL - App Servers only",
+        "vpcId": "vpc-tabelog-prod",
+        "ipPermissions": [
+          {
+            "ipProtocol": "tcp", "fromPort": 3306, "toPort": 3306,
+            "ipRanges": [],
+            "userIdGroupPairs": [{"groupId": "sg-app-tabelog", "description": "From App Servers only"}]
+          }
+        ],
+        "ipPermissionsEgress": []
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "rtb-pub-tabelog",
+      "arn": "arn:aws:ec2:ap-northeast-1:111122223333:route-table/rtb-pub-tabelog",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::RouteTable",
+      "awsRegion": "ap-northeast-1",
+      "tags": {"Name": "Tabelog-Public-RouteTable"},
+      "relationships": [
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"},
+        {"resourceId": "subnet-pub-web-1a", "resourceType": "AWS::EC2::Subnet", "name": "Is associated with Subnet"},
+        {"resourceId": "subnet-pub-web-1c", "resourceType": "AWS::EC2::Subnet", "name": "Is associated with Subnet"}
+      ],
+      "configuration": {
+        "routeTableId": "rtb-pub-tabelog",
+        "vpcId": "vpc-tabelog-prod",
+        "routes": [
+          {"destinationCidrBlock": "10.0.0.0/16", "gatewayId": "local", "state": "active", "origin": "CreateRouteTable"},
+          {"destinationCidrBlock": "0.0.0.0/0", "gatewayId": "igw-tabelog01", "state": "active", "origin": "CreateRoute"}
+        ],
+        "associations": [
+          {"routeTableAssociationId": "rtbassoc-pub-1a", "subnetId": "subnet-pub-web-1a", "main": false},
+          {"routeTableAssociationId": "rtbassoc-pub-1c", "subnetId": "subnet-pub-web-1c", "main": false}
+        ]
+      }
+    },
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "rtb-priv-app-tabelog",
+      "arn": "arn:aws:ec2:ap-northeast-1:111122223333:route-table/rtb-priv-app-tabelog",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::RouteTable",
+      "awsRegion": "ap-northeast-1",
+      "tags": {"Name": "Tabelog-Private-App-RouteTable"},
+      "relationships": [
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"},
+        {"resourceId": "subnet-priv-app-1a", "resourceType": "AWS::EC2::Subnet", "name": "Is associated with Subnet"},
+        {"resourceId": "subnet-priv-app-1c", "resourceType": "AWS::EC2::Subnet", "name": "Is associated with Subnet"}
+      ],
+      "configuration": {
+        "routeTableId": "rtb-priv-app-tabelog",
+        "vpcId": "vpc-tabelog-prod",
+        "routes": [
+          {"destinationCidrBlock": "10.0.0.0/16", "gatewayId": "local", "state": "active", "origin": "CreateRouteTable"},
+          {"destinationCidrBlock": "0.0.0.0/0", "natGatewayId": "nat-tabelog-1a", "state": "active", "origin": "CreateRoute"}
+        ],
+        "associations": [
+          {"routeTableAssociationId": "rtbassoc-priv-app-1a", "subnetId": "subnet-priv-app-1a", "main": false},
+          {"routeTableAssociationId": "rtbassoc-priv-app-1c", "subnetId": "subnet-priv-app-1c", "main": false}
+        ]
+      }
+    },
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "rtb-priv-db-tabelog",
+      "arn": "arn:aws:ec2:ap-northeast-1:111122223333:route-table/rtb-priv-db-tabelog",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::RouteTable",
+      "awsRegion": "ap-northeast-1",
+      "tags": {"Name": "Tabelog-Private-DB-RouteTable"},
+      "relationships": [
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is contained in VPC"},
+        {"resourceId": "subnet-priv-db-1a", "resourceType": "AWS::EC2::Subnet", "name": "Is associated with Subnet"},
+        {"resourceId": "subnet-priv-db-1c", "resourceType": "AWS::EC2::Subnet", "name": "Is associated with Subnet"}
+      ],
+      "configuration": {
+        "routeTableId": "rtb-priv-db-tabelog",
+        "vpcId": "vpc-tabelog-prod",
+        "routes": [
+          {"destinationCidrBlock": "10.0.0.0/16", "gatewayId": "local", "state": "active", "origin": "CreateRouteTable"}
+        ],
+        "associations": [
+          {"routeTableAssociationId": "rtbassoc-priv-db-1a", "subnetId": "subnet-priv-db-1a", "main": false},
+          {"routeTableAssociationId": "rtbassoc-priv-db-1c", "subnetId": "subnet-priv-db-1c", "main": false}
+        ]
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "asg-tabelog-web",
+      "arn": "arn:aws:autoscaling:ap-northeast-1:111122223333:autoScalingGroup:asg-tabelog-web",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::AutoScaling::AutoScalingGroup",
+      "awsRegion": "ap-northeast-1",
+      "tags": {"Name": "Tabelog-Web-ASG"},
+      "relationships": [],
+      "configuration": {
+        "autoScalingGroupName": "tabelog-web-asg",
+        "minSize": 2,
+        "maxSize": 6,
+        "desiredCapacity": 2,
+        "vPCZoneIdentifier": "subnet-pub-web-1a,subnet-pub-web-1c",
+        "loadBalancerNames": [],
+        "targetGroupARNs": ["arn:aws:elasticloadbalancing:ap-northeast-1:111122223333:targetgroup/tabelog-web-tg/xxx"],
+        "instances": [
+          {"instanceId": "i-web-1a", "availabilityZone": "ap-northeast-1a"},
+          {"instanceId": "i-web-1c", "availabilityZone": "ap-northeast-1c"}
+        ]
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "asg-tabelog-app",
+      "arn": "arn:aws:autoscaling:ap-northeast-1:111122223333:autoScalingGroup:asg-tabelog-app",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::AutoScaling::AutoScalingGroup",
+      "awsRegion": "ap-northeast-1",
+      "tags": {"Name": "Tabelog-App-ASG"},
+      "relationships": [],
+      "configuration": {
+        "autoScalingGroupName": "tabelog-app-asg",
+        "minSize": 2,
+        "maxSize": 10,
+        "desiredCapacity": 4,
+        "vPCZoneIdentifier": "subnet-priv-app-1a,subnet-priv-app-1c",
+        "loadBalancerNames": [],
+        "targetGroupARNs": [],
+        "instances": [
+          {"instanceId": "i-app-1a", "availabilityZone": "ap-northeast-1a"},
+          {"instanceId": "i-app-1c", "availabilityZone": "ap-northeast-1c"}
+        ]
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "eb-tabelog-admin",
+      "arn": "arn:aws:elasticbeanstalk:ap-northeast-1:111122223333:environment/tabelog-admin/tabelog-admin-env",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::ElasticBeanstalk::Environment",
+      "awsRegion": "ap-northeast-1",
+      "tags": {"Name": "Tabelog-Admin-EB"},
+      "relationships": [],
+      "configuration": {
+        "environmentName": "tabelog-admin-env",
+        "applicationName": "tabelog-admin",
+        "status": "Ready",
+        "health": "Green",
+        "tier": {"name": "WebServer", "type": "Standard"},
+        "versionLabel": "v1.2.3",
+        "platformArn": "arn:aws:elasticbeanstalk:ap-northeast-1::platform/Ruby 3.2 running on 64bit Amazon Linux 2023"
+      }
+    },
+
+    {
+      "configurationItemVersion": "1.3",
+      "resourceId": "pcx-tabelog-mgmt",
+      "arn": "arn:aws:ec2:ap-northeast-1:111122223333:vpc-peering-connection/pcx-tabelog-mgmt",
+      "accountId": "111122223333",
+      "configurationItemCaptureTime": "2025-02-01T00:00:00.000Z",
+      "configurationItemStatus": "OK",
+      "resourceType": "AWS::EC2::VPCPeeringConnection",
+      "awsRegion": "ap-northeast-1",
+      "tags": {"Name": "Tabelog-Prod-to-Mgmt"},
+      "relationships": [
+        {"resourceId": "vpc-tabelog-prod", "resourceType": "AWS::EC2::VPC", "name": "Is associated with VPC Peering"},
+        {"resourceId": "vpc-tabelog-mgmt", "resourceType": "AWS::EC2::VPC", "name": "Is associated with VPC Peering"}
+      ],
+      "configuration": {
+        "vpcPeeringConnectionId": "pcx-tabelog-mgmt",
+        "requesterVpcInfo": {
+          "vpcId": "vpc-tabelog-prod",
+          "cidrBlock": "10.0.0.0/16",
+          "ownerId": "111122223333",
+          "region": "ap-northeast-1"
+        },
+        "accepterVpcInfo": {
+          "vpcId": "vpc-tabelog-mgmt",
+          "cidrBlock": "172.16.0.0/16",
+          "ownerId": "111122223333",
+          "region": "ap-northeast-1"
+        },
+        "status": {"code": "active", "message": "Active"}
+      }
+    }
+  ]
+}
