@@ -130,6 +130,30 @@ function allSideCombinations(): Array<{ srcSide: Side; dstSide: Side }> {
 const SIDE_COMBINATIONS = allSideCombinations()
 
 // ============================================================
+// Path defect detection
+// ============================================================
+
+/** パスに後戻り（U字）または斜め線がないか検証 */
+function hasPathDefect(wp: Point[]): boolean {
+  for (let i = 0; i < wp.length - 1; i++) {
+    const a = wp[i], b = wp[i + 1]
+    // 斜め線チェック: xもyも異なるセグメントは不正
+    if (Math.abs(a.x - b.x) > 0.5 && Math.abs(a.y - b.y) > 0.5) return true
+  }
+  for (let i = 0; i < wp.length - 2; i++) {
+    const a = wp[i], b = wp[i + 1], c = wp[i + 2]
+    // 後戻りチェック: 3点が同軸で方向が反転
+    if (Math.abs(a.x - b.x) < 0.5 && Math.abs(b.x - c.x) < 0.5) {
+      if ((b.y - a.y) * (c.y - b.y) < 0) return true
+    }
+    if (Math.abs(a.y - b.y) < 0.5 && Math.abs(b.y - c.y) < 0.5) {
+      if ((b.x - a.x) * (c.x - b.x) < 0) return true
+    }
+  }
+  return false
+}
+
+// ============================================================
 // Post-process: center port groups on icon edges
 // ============================================================
 
@@ -345,6 +369,9 @@ export function routeAllEdges(
           const candidates = generateCandidatePaths(srcPt, srcSide, dstPt, dstSide, obstacles)
 
           for (const { path, hits } of candidates) {
+            // 後戻り・斜め線のある候補はスキップ
+            if (hasPathDefect(path)) continue
+
             const bends = countBends(path)
             const cross = countCrossings(path, existingPaths)
             const len = pathLength(path)
