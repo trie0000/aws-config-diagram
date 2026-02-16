@@ -8,7 +8,7 @@
  *   4. 選択基準: アイコン貫通なし → 曲がり少 → 交差少 → 距離短
  *   5. ポートは同じ辺に来るエッジごとに中央から外側へ順に分散
  *
- * Version: 15.1.0
+ * Version: 15.2.0
  */
 
 import type { DiagramNode, DiagramEdge } from '../../types/diagram'
@@ -65,39 +65,47 @@ function iconDistance(edge: DiagramEdge, icons: Map<string, IconRect>): number {
 const PORT_GAP = 12
 
 class PortTracker {
-  private counts = new Map<string, number>()
+  /** 各 (nodeId:side) に確定済みのoffset座標リスト */
+  private committed = new Map<string, number[]>()
 
-  private calcOffset(n: number, side: Side, icon: IconRect, flip = false): number {
-    if (n === 0) return 0
-    const rank = Math.ceil(n / 2)
-    const baseSign = n % 2 === 1 ? -1 : 1
-    const sign = flip ? -baseSign : baseSign
-    const offset = sign * rank * PORT_GAP
-    const isHoriz = side === 'left' || side === 'right'
-    const halfEdge = (isHoriz ? icon.h : icon.w) / 2 - 2
-    return Math.max(-halfEdge, Math.min(halfEdge, offset))
-  }
-
-  /** 次に割り当てるoffset候補を返す（正と負の両方向） */
+  /** ポート候補を返す: 外側 + 既存ポート間の隙間 */
   peekOffsets(nodeId: string, side: Side, icon: IconRect): number[] {
     const key = `${nodeId}:${side}`
-    const n = this.counts.get(key) ?? 0
-    const primary = this.calcOffset(n, side, icon)
-    if (n === 0) return [primary]  // 中央は1つだけ
-    const flipped = this.calcOffset(n, side, icon, true)
-    if (flipped === primary) return [primary]
-    return [primary, flipped]
+    const existing = this.committed.get(key)
+
+    // まだポートがない → 中央のみ
+    if (!existing || existing.length === 0) return [0]
+
+    const isHoriz = side === 'left' || side === 'right'
+    const halfEdge = (isHoriz ? icon.h : icon.w) / 2 - 2
+
+    const sorted = [...existing].sort((a, b) => a - b)
+    const candidates: number[] = []
+
+    // 外側候補: 最小の外側、最大の外側
+    const outerLow = sorted[0] - PORT_GAP
+    if (outerLow >= -halfEdge) candidates.push(outerLow)
+    const outerHigh = sorted[sorted.length - 1] + PORT_GAP
+    if (outerHigh <= halfEdge) candidates.push(outerHigh)
+
+    // 隙間候補: 隣り合うポートの中間点
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const gap = sorted[i + 1] - sorted[i]
+      if (gap >= PORT_GAP) {
+        candidates.push((sorted[i] + sorted[i + 1]) / 2)
+      }
+    }
+
+    return candidates.length > 0 ? candidates : [0]
   }
 
-  commitOffset(nodeId: string, side: Side, icon: IconRect, offset: number): void {
+  commitOffset(nodeId: string, side: Side, _icon: IconRect, offset: number): void {
     const key = `${nodeId}:${side}`
-    const n = this.counts.get(key) ?? 0
-    this.counts.set(key, n + 1)
-    // offset方向が反転していたら追加でカウントを進める
-    const expected = this.calcOffset(n, side, icon)
-    if (Math.abs(offset - expected) > 0.5) {
-      // 反転offset採用 → 実質2つ分のスロットを使う
-      this.counts.set(key, n + 2)
+    const list = this.committed.get(key)
+    if (list) {
+      list.push(offset)
+    } else {
+      this.committed.set(key, [offset])
     }
   }
 }
@@ -310,6 +318,209 @@ function applyShift(wp: Point[], isSrc: boolean, side: Side, shift: number): voi
 }
 
 // ============================================================
+// Post-process: align elbow positions for parallel edges
+// ============================================================
+
+interface ElbowEntry {
+  routedIdx: number
+  isSrc: boolean
+  elbowIdx: number  // index in waypoints array
+  coord: number     // current elbow coordinate (x or y depending on side)
+  axis: 'x' | 'y'  // which axis to adjust
+}
+
+/**
+ * src端のstem直後の曲がり角を特定する。
+ *
+ * パス構造: [srcPt(0), srcStem(1), elbow(2), next(3), ...]
+ * left/right stem(横) → stem→elbow は横(same y), elbow→next は縦(same x) → 調整軸 x
+ * top/bottom stem(縦) → stem→elbow は縦(same x), elbow→next は横(same y) → 調整軸 y
+ */
+function findElbowFromSrc(wp: Point[], srcSide: Side): ElbowEntry | null {
+  if (wp.length < 4) return null
+  const stem = wp[1]
+  const elbow = wp[2]
+  const next = wp[3]
+
+  if (srcSide === 'left' || srcSide === 'right') {
+    if (Math.abs(stem.y - elbow.y) < 0.5 && Math.abs(elbow.x - next.x) < 0.5) {
+      return { routedIdx: -1, isSrc: true, elbowIdx: 2, coord: elbow.x, axis: 'x' }
+    }
+  } else {
+    if (Math.abs(stem.x - elbow.x) < 0.5 && Math.abs(elbow.y - next.y) < 0.5) {
+      return { routedIdx: -1, isSrc: true, elbowIdx: 2, coord: elbow.y, axis: 'y' }
+    }
+  }
+  return null
+}
+
+/**
+ * dst端のstem直前の曲がり角を特定する。
+ *
+ * パス構造: [..., prev(n-4), elbow(n-3), dstStem(n-2), dstPt(n-1)]
+ * left/right stem(横) → elbow→stem は横(same y), prev→elbow は縦(same x) → 調整軸 x
+ * top/bottom stem(縦) → elbow→stem は縦(same x), prev→elbow は横(same y) → 調整軸 y
+ */
+function findElbowFromDst(wp: Point[], dstSide: Side): ElbowEntry | null {
+  if (wp.length < 4) return null
+  const n = wp.length
+  const elbow = wp[n - 3]
+  const stem = wp[n - 2]
+  const prev = wp[n - 4]
+
+  if (dstSide === 'left' || dstSide === 'right') {
+    if (Math.abs(elbow.y - stem.y) < 0.5 && Math.abs(prev.x - elbow.x) < 0.5) {
+      return { routedIdx: -1, isSrc: false, elbowIdx: n - 3, coord: elbow.x, axis: 'x' }
+    }
+  } else {
+    if (Math.abs(elbow.x - stem.x) < 0.5 && Math.abs(prev.y - elbow.y) < 0.5) {
+      return { routedIdx: -1, isSrc: false, elbowIdx: n - 3, coord: elbow.y, axis: 'y' }
+    }
+  }
+  return null
+}
+
+/**
+ * elbowのシフトに連動して動かすべき隣接点のインデックスを収集する。
+ *
+ * elbowを axis='x' で shift する場合、elbow と同じ x を持つ隣接点も動かす。
+ * elbowを axis='y' で shift する場合、elbow と同じ y を持つ隣接点も動かす。
+ *
+ * src側 (elbowIdx=2):
+ *   axis='x' → stem(1)は同y(横)なので不要、next(3)は同x(縦)なので必要
+ *   axis='y' → stem(1)は同x(縦)なので不要、next(3)は同y(横)なので必要
+ *
+ * dst側 (elbowIdx=n-3):
+ *   axis='x' → stem(n-2)は同y(横)なので不要、prev(n-4)は同x(縦)なので必要
+ *   axis='y' → stem(n-2)は同x(縦)なので不要、prev(n-4)は同y(横)なので必要
+ */
+function collectCoaxialIndices(wp: Point[], elbowIdx: number, axis: 'x' | 'y'): number[] {
+  const indices: number[] = [elbowIdx]
+  const elbow = wp[elbowIdx]
+
+  // 前方向（elbowIdx-1, elbowIdx-2, ...）で同軸の点を探す
+  for (let i = elbowIdx - 1; i >= 0; i--) {
+    if (axis === 'x' && Math.abs(wp[i].x - elbow.x) < 0.5) {
+      indices.push(i)
+    } else if (axis === 'y' && Math.abs(wp[i].y - elbow.y) < 0.5) {
+      indices.push(i)
+    } else {
+      break  // 同軸でなくなったら停止
+    }
+  }
+
+  // 後方向（elbowIdx+1, elbowIdx+2, ...）で同軸の点を探す
+  for (let i = elbowIdx + 1; i < wp.length; i++) {
+    if (axis === 'x' && Math.abs(wp[i].x - elbow.x) < 0.5) {
+      indices.push(i)
+    } else if (axis === 'y' && Math.abs(wp[i].y - elbow.y) < 0.5) {
+      indices.push(i)
+    } else {
+      break
+    }
+  }
+
+  return indices
+}
+
+/**
+ * 同じアイコン辺に接続されたエッジ群の曲がり角座標をPORT_GAP間隔に揃える。
+ * ルーティング完了後のポスト処理。
+ */
+function alignElbows(routed: RoutedEdge[], obstacles: Rect[]): void {
+  const groups = new Map<string, { axis: 'x' | 'y'; entries: ElbowEntry[] }>()
+
+  for (let ri = 0; ri < routed.length; ri++) {
+    const r = routed[ri]
+    if (r.waypoints.length < 4) continue
+
+    // src側の曲がり角
+    const srcElbow = findElbowFromSrc(r.waypoints, r.srcSide)
+    if (srcElbow) {
+      srcElbow.routedIdx = ri
+      const key = `${r.sourceNodeId}:${r.srcSide}`
+      if (!groups.has(key)) groups.set(key, { axis: srcElbow.axis, entries: [] })
+      const g = groups.get(key)!
+      if (g.axis === srcElbow.axis) g.entries.push(srcElbow)
+    }
+
+    // dst側の曲がり角
+    const dstElbow = findElbowFromDst(r.waypoints, r.dstSide)
+    if (dstElbow) {
+      dstElbow.routedIdx = ri
+      const key = `${r.targetNodeId}:${r.dstSide}`
+      if (!groups.has(key)) groups.set(key, { axis: dstElbow.axis, entries: [] })
+      const g = groups.get(key)!
+      if (g.axis === dstElbow.axis) g.entries.push(dstElbow)
+    }
+  }
+
+  for (const [, group] of groups) {
+    if (group.entries.length < 2) continue
+
+    // 現在の曲がり角座標をソート
+    const sorted = [...group.entries].sort((a, b) => a.coord - b.coord)
+    const coords = sorted.map(e => e.coord)
+
+    // 現在の中央値を基準にPORT_GAP間隔で再配置
+    const center = (coords[0] + coords[coords.length - 1]) / 2
+    const totalSpan = (sorted.length - 1) * PORT_GAP
+    const startCoord = center - totalSpan / 2
+
+    const newCoords = sorted.map((_, i) => startCoord + i * PORT_GAP)
+
+    // 全エントリの移動量が0なら何もしない
+    const maxShift = Math.max(...sorted.map((e, i) => Math.abs(newCoords[i] - e.coord)))
+    if (maxShift < 0.5) continue
+
+    // 安全性チェック: 新位置で障害物に衝突しないか
+    let safe = true
+    for (let i = 0; i < sorted.length; i++) {
+      const entry = sorted[i]
+      const shift = newCoords[i] - entry.coord
+      if (Math.abs(shift) < 0.1) continue
+
+      const wp = routed[entry.routedIdx].waypoints
+      const testWp = wp.map(p => ({ ...p }))
+
+      // elbow と同軸の全ての隣接点をまとめてシフト
+      const coaxial = collectCoaxialIndices(wp, entry.elbowIdx, group.axis)
+      for (const ci of coaxial) {
+        if (group.axis === 'x') testWp[ci].x += shift
+        else testWp[ci].y += shift
+      }
+
+      // 内部セグメントの衝突チェック（stem除外: index 1 ~ len-2）
+      for (let si = 1; si < testWp.length - 2; si++) {
+        for (const obs of obstacles) {
+          if (segHitsRect(testWp[si].x, testWp[si].y, testWp[si + 1].x, testWp[si + 1].y, obs, MARGIN)) {
+            safe = false
+            break
+          }
+        }
+        if (!safe) break
+      }
+      if (!safe) break
+    }
+    if (!safe) continue
+
+    // 安全な場合、実際にwaypointsを書き換え
+    for (let i = 0; i < sorted.length; i++) {
+      const entry = sorted[i]
+      const shift = newCoords[i] - entry.coord
+      if (Math.abs(shift) < 0.1) continue
+
+      const wp = routed[entry.routedIdx].waypoints
+      const coaxial = collectCoaxialIndices(wp, entry.elbowIdx, group.axis)
+      for (const ci of coaxial) {
+        if (group.axis === 'x') wp[ci].x += shift
+        else wp[ci].y += shift
+      }
+    }
+  }
+}
+
+// ============================================================
 // Main
 // ============================================================
 
@@ -417,6 +628,7 @@ export function routeAllEdges(
   }
 
   centerPorts(routed, iconMap, obstacles)
+  alignElbows(routed, obstacles)
 
   return routed
 }
