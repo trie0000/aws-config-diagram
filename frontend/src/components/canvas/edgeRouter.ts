@@ -386,31 +386,31 @@ function findElbowFromDst(wp: Point[], dstSide: Side): ElbowEntry | null {
  * elbowを axis='x' で shift する場合、elbow と同じ x を持つ隣接点も動かす。
  * elbowを axis='y' で shift する場合、elbow と同じ y を持つ隣接点も動かす。
  *
- * src側 (elbowIdx=2):
- *   axis='x' → stem(1)は同y(横)なので不要、next(3)は同x(縦)なので必要
- *   axis='y' → stem(1)は同x(縦)なので不要、next(3)は同y(横)なので必要
- *
- * dst側 (elbowIdx=n-3):
- *   axis='x' → stem(n-2)は同y(横)なので不要、prev(n-4)は同x(縦)なので必要
- *   axis='y' → stem(n-2)は同x(縦)なので不要、prev(n-4)は同y(横)なので必要
+ * 重要: src端点(wp[0])とdst端点(wp[last])はアイコン上のポートなので
+ * 絶対に動かしてはならない。stem点(wp[1], wp[last-1])も同様。
+ * 探索範囲を [2, wp.length-3] に制限する。
  */
 function collectCoaxialIndices(wp: Point[], elbowIdx: number, axis: 'x' | 'y'): number[] {
   const indices: number[] = [elbowIdx]
   const elbow = wp[elbowIdx]
 
-  // 前方向（elbowIdx-1, elbowIdx-2, ...）で同軸の点を探す
-  for (let i = elbowIdx - 1; i >= 0; i--) {
+  // 探索範囲: stem/端点を除く内部点のみ (index 2 ~ wp.length-3)
+  const minIdx = 2
+  const maxIdx = wp.length - 3
+
+  // 前方向で同軸の点を探す（stem/端点には踏み込まない）
+  for (let i = elbowIdx - 1; i >= minIdx; i--) {
     if (axis === 'x' && Math.abs(wp[i].x - elbow.x) < 0.5) {
       indices.push(i)
     } else if (axis === 'y' && Math.abs(wp[i].y - elbow.y) < 0.5) {
       indices.push(i)
     } else {
-      break  // 同軸でなくなったら停止
+      break
     }
   }
 
-  // 後方向（elbowIdx+1, elbowIdx+2, ...）で同軸の点を探す
-  for (let i = elbowIdx + 1; i < wp.length; i++) {
+  // 後方向で同軸の点を探す（stem/端点には踏み込まない）
+  for (let i = elbowIdx + 1; i <= maxIdx; i++) {
     if (axis === 'x' && Math.abs(wp[i].x - elbow.x) < 0.5) {
       indices.push(i)
     } else if (axis === 'y' && Math.abs(wp[i].y - elbow.y) < 0.5) {
@@ -461,6 +461,11 @@ function alignElbows(routed: RoutedEdge[], obstacles: Rect[]): void {
     // 現在の曲がり角座標をソート
     const sorted = [...group.entries].sort((a, b) => a.coord - b.coord)
     const coords = sorted.map(e => e.coord)
+
+    // 曲がり角の最大間隔がPORT_GAP×4を超える場合はスキップ
+    // （異なる宛先への遠いエッジを無理に揃えない）
+    const maxGap = coords[coords.length - 1] - coords[0]
+    if (maxGap > PORT_GAP * 4) continue
 
     // 現在の中央値を基準にPORT_GAP間隔で再配置
     const center = (coords[0] + coords[coords.length - 1]) / 2
