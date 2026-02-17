@@ -16,9 +16,14 @@ import tempfile
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 # プロジェクトルートを Python パスに追加（aws_config_parser 等のインポート用）
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if getattr(sys, "frozen", False):
+    # PyInstaller frozen mode: sys._MEIPASS = _internal/ フォルダ
+    PROJECT_ROOT = sys._MEIPASS  # type: ignore[attr-defined]
+else:
+    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
@@ -165,3 +170,18 @@ async def _export_file(file: UploadFile, format: str) -> FileResponse:
         )
     finally:
         os.unlink(tmp_path)
+
+
+# ============================================================
+# 静的ファイル配信（exe モード / python desktop/main.py 時）
+# ============================================================
+# フロントエンドビルド済みファイルが存在する場合のみマウント。
+# html=True で SPA ルーティング対応（存在しないパスは index.html にフォールバック）。
+# 開発時（npm run dev + uvicorn --reload）は frontend/dist が無くても問題ない。
+_frontend_dist = os.path.join(PROJECT_ROOT, "frontend_dist")
+if not os.path.isdir(_frontend_dist):
+    # 開発モードでは frontend/dist を試す
+    _frontend_dist = os.path.join(PROJECT_ROOT, "frontend", "dist")
+
+if os.path.isdir(_frontend_dist):
+    app.mount("/", StaticFiles(directory=_frontend_dist, html=True), name="frontend")

@@ -26,5 +26,10 @@ icons_tmp/
 # Environment
 .env
 
+# PyInstaller
+build/
+dist/
+*.spec.bak
+
 # Uploads
 uploads/

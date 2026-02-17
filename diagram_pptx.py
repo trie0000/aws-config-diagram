@@ -38,7 +38,10 @@ from aws_config_parser import AWSConfigParser
 # ============================================================
 # Icon paths
 # ============================================================
-ICON_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
+if getattr(sys, "frozen", False):
+    ICON_DIR = os.path.join(sys._MEIPASS, "icons")  # type: ignore[attr-defined]
+else:
+    ICON_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
 
 ICONS = {}
 _ICON_NAMES = [
