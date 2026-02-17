@@ -207,3 +207,54 @@ export function pathLength(path: Point[]): number {
   return len
 }
 
+/**
+ * 候補パスが既存パスとセグメント重なりを持つ数を返す。
+ * 同方向（水平-水平 or 垂直-垂直）で座標範囲が重複する場合を重なりとする。
+ * stem セグメント（index 0 と last）は除外する。
+ */
+export function countOverlap(path: Point[], existingPaths: Point[][]): number {
+  let count = 0
+  for (let i = 1; i < path.length - 2; i++) {
+    const a1 = path[i], a2 = path[i + 1]
+    const aHoriz = Math.abs(a1.y - a2.y) < 0.5
+    const aVert = Math.abs(a1.x - a2.x) < 0.5
+    if (!aHoriz && !aVert) continue
+
+    let segOverlap = false
+    for (const other of existingPaths) {
+      if (segOverlap) break
+      for (let j = 1; j < other.length - 2; j++) {
+        const b1 = other[j], b2 = other[j + 1]
+
+        if (aHoriz) {
+          // 水平-水平: y座標が同一 かつ x範囲が重複
+          if (Math.abs(b1.y - b2.y) > 0.5) continue
+          if (Math.abs(a1.y - b1.y) > 0.5) continue
+          const aMinX = Math.min(a1.x, a2.x)
+          const aMaxX = Math.max(a1.x, a2.x)
+          const bMinX = Math.min(b1.x, b2.x)
+          const bMaxX = Math.max(b1.x, b2.x)
+          if (aMaxX > bMinX && aMinX < bMaxX) {
+            segOverlap = true
+            break
+          }
+        } else if (aVert) {
+          // 垂直-垂直: x座標が同一 かつ y範囲が重複
+          if (Math.abs(b1.x - b2.x) > 0.5) continue
+          if (Math.abs(a1.x - b1.x) > 0.5) continue
+          const aMinY = Math.min(a1.y, a2.y)
+          const aMaxY = Math.max(a1.y, a2.y)
+          const bMinY = Math.min(b1.y, b2.y)
+          const bMaxY = Math.max(b1.y, b2.y)
+          if (aMaxY > bMinY && aMinY < bMaxY) {
+            segOverlap = true
+            break
+          }
+        }
+      }
+    }
+    if (segOverlap) count++
+  }
+  return count
+}
+

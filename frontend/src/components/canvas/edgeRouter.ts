@@ -5,10 +5,11 @@
  *   1. 距離が短いエッジから順に処理
  *   2. 各エッジで全16通り(4×4)の辺パターンを試す
  *   3. 各パターンで直線/L字/Z字候補を生成
- *   4. 選択基準: アイコン貫通なし → 曲がり少 → 交差少 → 距離短
- *   5. ポートは同じ辺に来るエッジごとに中央から外側へ順に分散
+ *   4. 除外: 既存パスとの重なり（フォールバックあり）、パス欠陥
+ *   5. 選択基準: アイコン貫通少 → 曲がり少 → 交差少 → 距離短
+ *   6. ポートは同じ辺に来るエッジごとに中央から外側へ順に分散
  *
- * Version: 15.2.0
+ * Version: 15.5.0
  */
 
 import type { DiagramNode, DiagramEdge } from '../../types/diagram'
@@ -16,7 +17,7 @@ import type { RoutedEdge, Side, Point } from './edgeRouter.types'
 import { CONTAINER_TYPES, nodeIconRect } from './edgeRouter.types'
 import {
   generateCandidatePaths,
-  countBends, countCrossings, pathLength,
+  countBends, countCrossings, countOverlap, pathLength,
   segHitsRect, MARGIN,
 } from './edgeRouter.bfs'
 import type { Rect } from './edgeRouter.bfs'
@@ -62,13 +63,14 @@ function iconDistance(edge: DiagramEdge, icons: Map<string, IconRect>): number {
 // Port Tracker
 // ============================================================
 
-const PORT_GAP = 12
+/** Phase 1 でのポート最小間隔（重なり防止のみ） */
+const MIN_PORT_GAP = 2
 
 class PortTracker {
   /** 各 (nodeId:side) に確定済みのoffset座標リスト */
   private committed = new Map<string, number[]>()
 
-  /** ポート候補を返す: 外側 + 既存ポート間の隙間 */
+  /** ポート候補を返す: 中央→外側のみ（最小間隔） */
   peekOffsets(nodeId: string, side: Side, icon: IconRect): number[] {
     const key = `${nodeId}:${side}`
     const existing = this.committed.get(key)
@@ -82,19 +84,11 @@ class PortTracker {
     const sorted = [...existing].sort((a, b) => a - b)
     const candidates: number[] = []
 
-    // 外側候補: 最小の外側、最大の外側
-    const outerLow = sorted[0] - PORT_GAP
+    // 外側候補のみ: 最小の外側、最大の外側（最小間隔）
+    const outerLow = sorted[0] - MIN_PORT_GAP
     if (outerLow >= -halfEdge) candidates.push(outerLow)
-    const outerHigh = sorted[sorted.length - 1] + PORT_GAP
+    const outerHigh = sorted[sorted.length - 1] + MIN_PORT_GAP
     if (outerHigh <= halfEdge) candidates.push(outerHigh)
-
-    // 隙間候補: 隣り合うポートの中間点
-    for (let i = 0; i < sorted.length - 1; i++) {
-      const gap = sorted[i + 1] - sorted[i]
-      if (gap >= PORT_GAP) {
-        candidates.push((sorted[i] + sorted[i + 1]) / 2)
-      }
-    }
 
     return candidates.length > 0 ? candidates : [0]
   }
@@ -318,208 +312,375 @@ function applyShift(wp: Point[], isSrc: boolean, side: Side, shift: number): voi
 }
 
 // ============================================================
-// Post-process: align elbow positions for parallel edges
+// Post-process: spread ports evenly on each icon edge
 // ============================================================
 
-interface ElbowEntry {
+interface SpreadPortEntry {
+  routedIdx: number
+  isSrc: boolean        // true=src端, false=dst端
+  offset: number        // アイコン辺中央からのoffset
+  hasBend: boolean      // 曲がり角がある（=移動可能）
+}
+
+/**
+ * 同じアイコン辺のポート群を均等に再配置する。
+ *
+ * アルゴリズム:
+ *   1. 曲がり角がない接続線（直線 bends=0）は「固定」として動かさない
+ *   2. 両端の外側ポートをアイコン隅からアイコン辺長の10%離れた位置に設定
+ *   3. 固定ポートで区切られた区間ごとに、間のポートを等間隔に配置
+ */
+function spreadPorts(routed: RoutedEdge[], iconMap: Map<string, IconRect>, _obstacles: Rect[]): void {
+  // 1. 各アイコン辺ごとにポートを収集
+  const groups = new Map<string, { side: Side; nodeId: string; entries: SpreadPortEntry[] }>()
+
+  for (let ri = 0; ri < routed.length; ri++) {
+    const r = routed[ri]
+    if (r.waypoints.length < 2) continue
+    if (!r.sourceNodeId || !r.targetNodeId) continue
+
+    const srcIcon = iconMap.get(r.sourceNodeId)
+    const dstIcon = iconMap.get(r.targetNodeId)
+    if (!srcIcon || !dstIcon) continue
+
+    const bends = countBends(r.waypoints)
+
+    // src端
+    const srcKey = `${r.sourceNodeId}:${r.srcSide}`
+    if (!groups.has(srcKey)) {
+      groups.set(srcKey, { side: r.srcSide, nodeId: r.sourceNodeId, entries: [] })
+    }
+    const srcIsHoriz = r.srcSide === 'left' || r.srcSide === 'right'
+    const srcOffset = srcIsHoriz
+      ? r.waypoints[0].y - srcIcon.cy
+      : r.waypoints[0].x - srcIcon.cx
+    groups.get(srcKey)!.entries.push({ routedIdx: ri, isSrc: true, offset: srcOffset, hasBend: bends > 0 })
+
+    // dst端
+    const dstKey = `${r.targetNodeId}:${r.dstSide}`
+    if (!groups.has(dstKey)) {
+      groups.set(dstKey, { side: r.dstSide, nodeId: r.targetNodeId, entries: [] })
+    }
+    const wp = r.waypoints
+    const dstIsHoriz = r.dstSide === 'left' || r.dstSide === 'right'
+    const dstOffset = dstIsHoriz
+      ? wp[wp.length - 1].y - dstIcon.cy
+      : wp[wp.length - 1].x - dstIcon.cx
+    groups.get(dstKey)!.entries.push({ routedIdx: ri, isSrc: false, offset: dstOffset, hasBend: bends > 0 })
+  }
+
+  // 2. 各グループを処理
+  for (const [, group] of groups) {
+    if (group.entries.length < 2) continue
+
+    const icon = iconMap.get(group.nodeId)
+    if (!icon) continue
+
+    const isHoriz = group.side === 'left' || group.side === 'right'
+    const edgeLen = isHoriz ? icon.h : icon.w
+    const halfEdge = edgeLen / 2 - 2
+    if (halfEdge <= 0) continue  // アイコンが小さすぎる場合はスキップ
+
+    // 隅からのマージン = アイコン辺の長さの10%
+    const edgeMargin = edgeLen * 0.1
+
+    // offset順にソート
+    const sorted = [...group.entries].sort((a, b) => a.offset - b.offset)
+
+    // 新しいoffset配列を計算
+    const newOffsets = computeSpreadOffsets(sorted, halfEdge, edgeMargin)
+    if (!newOffsets) continue
+
+    // 変化がなければスキップ
+    const maxShift = Math.max(...sorted.map((e, i) => Math.abs(newOffsets[i] - e.offset)))
+    if (maxShift < 0.5) continue
+
+    // シフト適用（アイコン辺の範囲内なので安全性チェック不要）
+    for (let i = 0; i < sorted.length; i++) {
+      const shift = newOffsets[i] - sorted[i].offset
+      if (Math.abs(shift) < 0.1) continue
+      applyShift(routed[sorted[i].routedIdx].waypoints, sorted[i].isSrc, group.side, shift)
+    }
+  }
+}
+
+/**
+ * ポート群の新しいoffset座標を計算する。
+ *
+ * - 固定ポート（hasBend=false）は動かさない
+ * - 両端の外側ポートを隅からマージン以上離す
+ * - 固定ポートで区切られた区間ごとに等間隔配置
+ *
+ * @param edgeMargin 隅からのマージン（アイコン辺長の10%）
+ * @returns 新しいoffset配列（sorted と同じ順序）。変更不要なら null。
+ */
+function computeSpreadOffsets(sorted: SpreadPortEntry[], halfEdge: number, edgeMargin: number): number[] | null {
+  const n = sorted.length
+  const newOffsets = sorted.map(e => e.offset)
+
+  // 固定ポート（直線、曲がり角なし）のインデックスを収集
+  const fixedIndices: number[] = []
+  for (let i = 0; i < n; i++) {
+    if (!sorted[i].hasBend) fixedIndices.push(i)
+  }
+
+  // 境界制約を含む「アンカー」リストを構築
+  // アンカー = 位置が確定しているポイント（固定ポート + 両端の境界）
+  interface Anchor { sortedIdx: number; offset: number }
+  const anchors: Anchor[] = []
+
+  // 左端（最小offset側）のアンカー
+  const minBound = -halfEdge + edgeMargin
+  if (fixedIndices.length > 0 && fixedIndices[0] === 0) {
+    // 一番左が固定 → そのまま
+    anchors.push({ sortedIdx: 0, offset: sorted[0].offset })
+  } else {
+    // 一番左は移動可能 → 隅からマージンの位置に配置
+    const firstFixed = fixedIndices.length > 0 ? fixedIndices[0] : -1
+    let leftOffset = minBound
+    // 最初の固定ポートがある場合、その位置より手前に留める
+    if (firstFixed > 0) {
+      const maxLeft = sorted[firstFixed].offset - edgeMargin * firstFixed
+      leftOffset = Math.min(leftOffset, maxLeft)
+    }
+    // 境界内に収める
+    leftOffset = Math.max(-halfEdge, leftOffset)
+    anchors.push({ sortedIdx: 0, offset: leftOffset })
+    newOffsets[0] = leftOffset
+  }
+
+  // 固定ポートをアンカーに追加
+  for (const fi of fixedIndices) {
+    anchors.push({ sortedIdx: fi, offset: sorted[fi].offset })
+    newOffsets[fi] = sorted[fi].offset
+  }
+
+  // 右端（最大offset側）のアンカー
+  const maxBound = halfEdge - edgeMargin
+  if (fixedIndices.length > 0 && fixedIndices[fixedIndices.length - 1] === n - 1) {
+    // 一番右が固定 → そのまま
+    anchors.push({ sortedIdx: n - 1, offset: sorted[n - 1].offset })
+  } else {
+    const lastFixed = fixedIndices.length > 0 ? fixedIndices[fixedIndices.length - 1] : -1
+    let rightOffset = maxBound
+    // 最後の固定ポートがある場合、その位置より後ろに留める
+    if (lastFixed >= 0 && lastFixed < n - 1) {
+      const minRight = sorted[lastFixed].offset + edgeMargin * (n - 1 - lastFixed)
+      rightOffset = Math.max(rightOffset, minRight)
+    }
+    // 境界内に収める
+    rightOffset = Math.min(halfEdge, rightOffset)
+    anchors.push({ sortedIdx: n - 1, offset: rightOffset })
+    newOffsets[n - 1] = rightOffset
+  }
+
+  // アンカーをsortedIdx順にソート・重複除去
+  anchors.sort((a, b) => a.sortedIdx - b.sortedIdx)
+  const uniqueAnchors: Anchor[] = []
+  for (const a of anchors) {
+    if (uniqueAnchors.length === 0 || uniqueAnchors[uniqueAnchors.length - 1].sortedIdx !== a.sortedIdx) {
+      uniqueAnchors.push(a)
+    }
+  }
+
+  // アンカー間の区間で等間隔配置
+  for (let ai = 0; ai < uniqueAnchors.length - 1; ai++) {
+    const fromIdx = uniqueAnchors[ai].sortedIdx
+    const toIdx = uniqueAnchors[ai + 1].sortedIdx
+    const fromOffset = uniqueAnchors[ai].offset
+    const toOffset = uniqueAnchors[ai + 1].offset
+    const count = toIdx - fromIdx
+
+    if (count <= 1) continue  // 隣接するアンカー間にポートがない
+
+    const step = (toOffset - fromOffset) / count
+    for (let j = 1; j < count; j++) {
+      newOffsets[fromIdx + j] = fromOffset + step * j
+    }
+  }
+
+  return newOffsets
+}
+
+// ============================================================
+// Post-process: reassign port positions to minimize crossings
+// ============================================================
+
+interface PortGroupEntry {
   routedIdx: number
   isSrc: boolean
-  elbowIdx: number  // index in waypoints array
-  coord: number     // current elbow coordinate (x or y depending on side)
-  axis: 'x' | 'y'  // which axis to adjust
+  currentOffset: number
+}
+
+/** 順列を生成する（要素数5以下を想定） */
+function permutations<T>(arr: T[]): T[][] {
+  if (arr.length <= 1) return [arr]
+  const result: T[][] = []
+  for (let i = 0; i < arr.length; i++) {
+    const rest = [...arr.slice(0, i), ...arr.slice(i + 1)]
+    for (const perm of permutations(rest)) {
+      result.push([arr[i], ...perm])
+    }
+  }
+  return result
 }
 
 /**
- * src端のstem直後の曲がり角を特定する。
- *
- * パス構造: [srcPt(0), srcStem(1), elbow(2), next(3), ...]
- * left/right stem(横) → stem→elbow は横(same y), elbow→next は縦(same x) → 調整軸 x
- * top/bottom stem(縦) → stem→elbow は縦(same x), elbow→next は横(same y) → 調整軸 y
+ * ポートのシフトを waypoints に適用する（applyShift と同様のロジック）。
+ * ポート点 + stem点 + 同軸エルボーをまとめて移動。
  */
-function findElbowFromSrc(wp: Point[], srcSide: Side): ElbowEntry | null {
-  if (wp.length < 4) return null
-  const stem = wp[1]
-  const elbow = wp[2]
-  const next = wp[3]
+function shiftPortEnd(wp: Point[], isSrc: boolean, side: Side, shift: number): void {
+  const isHoriz = side === 'left' || side === 'right'
 
-  if (srcSide === 'left' || srcSide === 'right') {
-    if (Math.abs(stem.y - elbow.y) < 0.5 && Math.abs(elbow.x - next.x) < 0.5) {
-      return { routedIdx: -1, isSrc: true, elbowIdx: 2, coord: elbow.x, axis: 'x' }
+  if (isSrc) {
+    if (isHoriz) {
+      const oldY = wp[0].y
+      wp[0].y += shift
+      wp[1].y += shift
+      if (wp.length > 2 && Math.abs(wp[2].y - oldY) < 0.5) {
+        wp[2].y += shift
+      }
+    } else {
+      const oldX = wp[0].x
+      wp[0].x += shift
+      wp[1].x += shift
+      if (wp.length > 2 && Math.abs(wp[2].x - oldX) < 0.5) {
+        wp[2].x += shift
+      }
     }
   } else {
-    if (Math.abs(stem.x - elbow.x) < 0.5 && Math.abs(elbow.y - next.y) < 0.5) {
-      return { routedIdx: -1, isSrc: true, elbowIdx: 2, coord: elbow.y, axis: 'y' }
-    }
-  }
-  return null
-}
-
-/**
- * dst端のstem直前の曲がり角を特定する。
- *
- * パス構造: [..., prev(n-4), elbow(n-3), dstStem(n-2), dstPt(n-1)]
- * left/right stem(横) → elbow→stem は横(same y), prev→elbow は縦(same x) → 調整軸 x
- * top/bottom stem(縦) → elbow→stem は縦(same x), prev→elbow は横(same y) → 調整軸 y
- */
-function findElbowFromDst(wp: Point[], dstSide: Side): ElbowEntry | null {
-  if (wp.length < 4) return null
-  const n = wp.length
-  const elbow = wp[n - 3]
-  const stem = wp[n - 2]
-  const prev = wp[n - 4]
-
-  if (dstSide === 'left' || dstSide === 'right') {
-    if (Math.abs(elbow.y - stem.y) < 0.5 && Math.abs(prev.x - elbow.x) < 0.5) {
-      return { routedIdx: -1, isSrc: false, elbowIdx: n - 3, coord: elbow.x, axis: 'x' }
-    }
-  } else {
-    if (Math.abs(elbow.x - stem.x) < 0.5 && Math.abs(prev.y - elbow.y) < 0.5) {
-      return { routedIdx: -1, isSrc: false, elbowIdx: n - 3, coord: elbow.y, axis: 'y' }
-    }
-  }
-  return null
-}
-
-/**
- * elbowのシフトに連動して動かすべき隣接点のインデックスを収集する。
- *
- * elbowを axis='x' で shift する場合、elbow と同じ x を持つ隣接点も動かす。
- * elbowを axis='y' で shift する場合、elbow と同じ y を持つ隣接点も動かす。
- *
- * 重要: src端点(wp[0])とdst端点(wp[last])はアイコン上のポートなので
- * 絶対に動かしてはならない。stem点(wp[1], wp[last-1])も同様。
- * 探索範囲を [2, wp.length-3] に制限する。
- */
-function collectCoaxialIndices(wp: Point[], elbowIdx: number, axis: 'x' | 'y'): number[] {
-  const indices: number[] = [elbowIdx]
-  const elbow = wp[elbowIdx]
-
-  // 探索範囲: stem/端点を除く内部点のみ (index 2 ~ wp.length-3)
-  const minIdx = 2
-  const maxIdx = wp.length - 3
-
-  // 前方向で同軸の点を探す（stem/端点には踏み込まない）
-  for (let i = elbowIdx - 1; i >= minIdx; i--) {
-    if (axis === 'x' && Math.abs(wp[i].x - elbow.x) < 0.5) {
-      indices.push(i)
-    } else if (axis === 'y' && Math.abs(wp[i].y - elbow.y) < 0.5) {
-      indices.push(i)
+    const n = wp.length
+    if (isHoriz) {
+      const oldY = wp[n - 1].y
+      wp[n - 1].y += shift
+      wp[n - 2].y += shift
+      if (n > 2 && Math.abs(wp[n - 3].y - oldY) < 0.5) {
+        wp[n - 3].y += shift
+      }
     } else {
-      break
+      const oldX = wp[n - 1].x
+      wp[n - 1].x += shift
+      wp[n - 2].x += shift
+      if (n > 2 && Math.abs(wp[n - 3].x - oldX) < 0.5) {
+        wp[n - 3].x += shift
+      }
     }
   }
-
-  // 後方向で同軸の点を探す（stem/端点には踏み込まない）
-  for (let i = elbowIdx + 1; i <= maxIdx; i++) {
-    if (axis === 'x' && Math.abs(wp[i].x - elbow.x) < 0.5) {
-      indices.push(i)
-    } else if (axis === 'y' && Math.abs(wp[i].y - elbow.y) < 0.5) {
-      indices.push(i)
-    } else {
-      break
-    }
-  }
-
-  return indices
 }
 
 /**
- * 同じアイコン辺に接続されたエッジ群の曲がり角座標をPORT_GAP間隔に揃える。
- * ルーティング完了後のポスト処理。
+ * 同じアイコン辺のポート割り当てを入れ替えて交差を最小化する。
+ * ルーティング完了後、centerPorts/spreadPorts の前に実行。
  */
-function alignElbows(routed: RoutedEdge[], obstacles: Rect[]): void {
-  const groups = new Map<string, { axis: 'x' | 'y'; entries: ElbowEntry[] }>()
+function reassignPorts(routed: RoutedEdge[], iconMap: Map<string, IconRect>, obstacles: Rect[]): void {
+  // 1. 各アイコン辺のポートグループを構築
+  const groups = new Map<string, { side: Side; entries: PortGroupEntry[] }>()
 
   for (let ri = 0; ri < routed.length; ri++) {
     const r = routed[ri]
     if (r.waypoints.length < 4) continue
+    if (!r.sourceNodeId || !r.targetNodeId) continue
 
-    // src側の曲がり角
-    const srcElbow = findElbowFromSrc(r.waypoints, r.srcSide)
-    if (srcElbow) {
-      srcElbow.routedIdx = ri
-      const key = `${r.sourceNodeId}:${r.srcSide}`
-      if (!groups.has(key)) groups.set(key, { axis: srcElbow.axis, entries: [] })
-      const g = groups.get(key)!
-      if (g.axis === srcElbow.axis) g.entries.push(srcElbow)
-    }
+    const srcIcon = iconMap.get(r.sourceNodeId)
+    const dstIcon = iconMap.get(r.targetNodeId)
+    if (!srcIcon || !dstIcon) continue
 
-    // dst側の曲がり角
-    const dstElbow = findElbowFromDst(r.waypoints, r.dstSide)
-    if (dstElbow) {
-      dstElbow.routedIdx = ri
-      const key = `${r.targetNodeId}:${r.dstSide}`
-      if (!groups.has(key)) groups.set(key, { axis: dstElbow.axis, entries: [] })
-      const g = groups.get(key)!
-      if (g.axis === dstElbow.axis) g.entries.push(dstElbow)
-    }
+    // src端
+    const srcIsHoriz = r.srcSide === 'left' || r.srcSide === 'right'
+    const srcOffset = srcIsHoriz
+      ? r.waypoints[0].y - srcIcon.cy
+      : r.waypoints[0].x - srcIcon.cx
+    const srcKey = `${r.sourceNodeId}:${r.srcSide}`
+    if (!groups.has(srcKey)) groups.set(srcKey, { side: r.srcSide, entries: [] })
+    groups.get(srcKey)!.entries.push({ routedIdx: ri, isSrc: true, currentOffset: srcOffset })
+
+    // dst端
+    const wp = r.waypoints
+    const dstIsHoriz = r.dstSide === 'left' || r.dstSide === 'right'
+    const dstOffset = dstIsHoriz
+      ? wp[wp.length - 1].y - dstIcon.cy
+      : wp[wp.length - 1].x - dstIcon.cx
+    const dstKey = `${r.targetNodeId}:${r.dstSide}`
+    if (!groups.has(dstKey)) groups.set(dstKey, { side: r.dstSide, entries: [] })
+    groups.get(dstKey)!.entries.push({ routedIdx: ri, isSrc: false, currentOffset: dstOffset })
   }
 
+  // 2. 全パスのリストを構築（交差計算用）
+  const allPaths = routed.map(r => r.waypoints)
+
+  // 3. 各グループで順列探索
   for (const [, group] of groups) {
-    if (group.entries.length < 2) continue
+    const entries = group.entries
+    if (entries.length < 2) continue
+    // 6本以上は稀だがスキップ（順列爆発防止）
+    if (entries.length > 5) continue
 
-    // 現在の曲がり角座標をソート
-    const sorted = [...group.entries].sort((a, b) => a.coord - b.coord)
-    const coords = sorted.map(e => e.coord)
+    const offsets = entries.map(e => e.currentOffset)
+    const sortedOffsets = [...offsets].sort((a, b) => a - b)
 
-    // 曲がり角の最大間隔がPORT_GAP×4を超える場合はスキップ
-    // （異なる宛先への遠いエッジを無理に揃えない）
-    const maxGap = coords[coords.length - 1] - coords[0]
-    if (maxGap > PORT_GAP * 4) continue
-
-    // 現在の中央値を基準にPORT_GAP間隔で再配置
-    const center = (coords[0] + coords[coords.length - 1]) / 2
-    const totalSpan = (sorted.length - 1) * PORT_GAP
-    const startCoord = center - totalSpan / 2
-
-    const newCoords = sorted.map((_, i) => startCoord + i * PORT_GAP)
-
-    // 全エントリの移動量が0なら何もしない
-    const maxShift = Math.max(...sorted.map((e, i) => Math.abs(newCoords[i] - e.coord)))
-    if (maxShift < 0.5) continue
-
-    // 安全性チェック: 新位置で障害物に衝突しないか
-    let safe = true
-    for (let i = 0; i < sorted.length; i++) {
-      const entry = sorted[i]
-      const shift = newCoords[i] - entry.coord
-      if (Math.abs(shift) < 0.1) continue
-
+    // 現在の交差数
+    let currentCrossings = 0
+    for (const entry of entries) {
       const wp = routed[entry.routedIdx].waypoints
-      const testWp = wp.map(p => ({ ...p }))
+      const others = allPaths.filter((_, i) => i !== entry.routedIdx)
+      currentCrossings += countCrossings(wp, others)
+    }
 
-      // elbow と同軸の全ての隣接点をまとめてシフト
-      const coaxial = collectCoaxialIndices(wp, entry.elbowIdx, group.axis)
-      for (const ci of coaxial) {
-        if (group.axis === 'x') testWp[ci].x += shift
-        else testWp[ci].y += shift
+    // 全順列を試す
+    const perms = permutations(sortedOffsets)
+    let bestPerm = offsets
+    let bestCross = currentCrossings
+
+    for (const perm of perms) {
+      // 各エントリに仮の offset を割り当て
+      const shifts = entries.map((e, i) => perm[i] - e.currentOffset)
+
+      // waypointsのコピーを作成してシフト
+      const testPaths: Point[][] = allPaths.map(wp => wp.map(p => ({ ...p })))
+      let safe = true
+
+      for (let i = 0; i < entries.length; i++) {
+        if (Math.abs(shifts[i]) < 0.1) continue
+        shiftPortEnd(testPaths[entries[i].routedIdx], entries[i].isSrc, group.side, shifts[i])
       }
 
-      // 内部セグメントの衝突チェック（stem除外: index 1 ~ len-2）
-      for (let si = 1; si < testWp.length - 2; si++) {
-        for (const obs of obstacles) {
-          if (segHitsRect(testWp[si].x, testWp[si].y, testWp[si + 1].x, testWp[si + 1].y, obs, MARGIN)) {
-            safe = false
-            break
+      // 障害物衝突チェック
+      for (let i = 0; i < entries.length; i++) {
+        const wp = testPaths[entries[i].routedIdx]
+        for (let si = 1; si < wp.length - 2; si++) {
+          for (const obs of obstacles) {
+            if (segHitsRect(wp[si].x, wp[si].y, wp[si + 1].x, wp[si + 1].y, obs, MARGIN)) {
+              safe = false
+              break
+            }
           }
+          if (!safe) break
         }
         if (!safe) break
       }
-      if (!safe) break
+      if (!safe) continue
+
+      // 交差数を計算
+      let testCrossings = 0
+      for (const entry of entries) {
+        const wp = testPaths[entry.routedIdx]
+        const others = testPaths.filter((_, i) => i !== entry.routedIdx)
+        testCrossings += countCrossings(wp, others)
+      }
+
+      if (testCrossings < bestCross) {
+        bestCross = testCrossings
+        bestPerm = perm
+      }
     }
-    if (!safe) continue
 
-    // 安全な場合、実際にwaypointsを書き換え
-    for (let i = 0; i < sorted.length; i++) {
-      const entry = sorted[i]
-      const shift = newCoords[i] - entry.coord
-      if (Math.abs(shift) < 0.1) continue
-
-      const wp = routed[entry.routedIdx].waypoints
-      const coaxial = collectCoaxialIndices(wp, entry.elbowIdx, group.axis)
-      for (const ci of coaxial) {
-        if (group.axis === 'x') wp[ci].x += shift
-        else wp[ci].y += shift
+    // ベストが現在より良ければ適用
+    if (bestCross < currentCrossings) {
+      for (let i = 0; i < entries.length; i++) {
+        const shift = bestPerm[i] - entries[i].currentOffset
+        if (Math.abs(shift) < 0.1) continue
+        shiftPortEnd(routed[entries[i].routedIdx].waypoints, entries[i].isSrc, group.side, shift)
+        entries[i].currentOffset = bestPerm[i]
       }
     }
   }
@@ -562,16 +723,21 @@ export function routeAllEdges(
     }
 
     // 全16通りの辺パターン × 各パターンで直線/L字/Z字候補
-    let bestPath: Point[] | null = null
-    let bestSrcSide: Side = 'right'
-    let bestDstSide: Side = 'left'
-    let bestHits = Infinity
-    let bestBends = Infinity
-    let bestCross = Infinity
-    let bestLen = Infinity
+    // 重なりなし候補を優先、全候補が重なる場合はフォールバック（重なり最小）
+    interface Scored {
+      path: Point[]; srcSide: Side; dstSide: Side
+      srcOffset: number; dstOffset: number
+      overlap: number; hits: number; bends: number; cross: number; len: number
+    }
+    function isBetter(a: Scored, b: Scored): boolean {
+      if (a.hits !== b.hits) return a.hits < b.hits
+      if (a.bends !== b.bends) return a.bends < b.bends
+      if (a.cross !== b.cross) return a.cross < b.cross
+      return a.len < b.len
+    }
 
-    let bestSrcOffset = 0
-    let bestDstOffset = 0
+    let bestClean: Scored | null = null   // overlap === 0 の最良
+    let bestFallback: Scored | null = null // overlap > 0 の最良（overlap最小優先）
 
     for (const { srcSide, dstSide } of SIDE_COMBINATIONS) {
       const srcOffsets = portTracker.peekOffsets(srcIcon.nodeId, srcSide, srcIcon)
@@ -585,37 +751,44 @@ export function routeAllEdges(
           const candidates = generateCandidatePaths(srcPt, srcSide, dstPt, dstSide, obstacles)
 
           for (const { path, hits } of candidates) {
-            // 後戻り・斜め線のある候補はスキップ
+            // 後戻り・斜め線のある候補はスキップ（ルール11）
             if (hasPathDefect(path)) continue
 
+            const overlap = countOverlap(path, existingPaths)
             const bends = countBends(path)
             const cross = countCrossings(path, existingPaths)
             const len = pathLength(path)
 
-            // 選択基準: hits少 → bends少 → cross少 → len短
-            if (hits < bestHits ||
-                (hits === bestHits && bends < bestBends) ||
-                (hits === bestHits && bends === bestBends && cross < bestCross) ||
-                (hits === bestHits && bends === bestBends && cross === bestCross && len < bestLen)) {
-              bestPath = path
-              bestSrcSide = srcSide
-              bestDstSide = dstSide
-              bestSrcOffset = srcOffset
-              bestDstOffset = dstOffset
-              bestHits = hits
-              bestBends = bends
-              bestCross = cross
-              bestLen = len
+            const scored: Scored = {
+              path, srcSide, dstSide, srcOffset, dstOffset,
+              overlap, hits, bends, cross, len,
+            }
+
+            if (overlap === 0) {
+              // 重なりなし候補（ルール8クリア）
+              if (!bestClean || isBetter(scored, bestClean)) {
+                bestClean = scored
+              }
+            } else {
+              // フォールバック: overlap最小 → 通常基準
+              if (!bestFallback ||
+                  overlap < bestFallback.overlap ||
+                  (overlap === bestFallback.overlap && isBetter(scored, bestFallback))) {
+                bestFallback = scored
+              }
             }
           }
         }
       }
     }
 
-    if (!bestPath) {
-      // ありえないが念のため
-      bestPath = []
-    }
+    const best = bestClean ?? bestFallback
+
+    const bestPath = best ? best.path : []
+    const bestSrcSide = best ? best.srcSide : 'right' as Side
+    const bestDstSide = best ? best.dstSide : 'left' as Side
+    const bestSrcOffset = best ? best.srcOffset : 0
+    const bestDstOffset = best ? best.dstOffset : 0
 
     portTracker.commitOffset(srcIcon.nodeId, bestSrcSide, srcIcon, bestSrcOffset)
     portTracker.commitOffset(dstIcon.nodeId, bestDstSide, dstIcon, bestDstOffset)
@@ -632,8 +805,9 @@ export function routeAllEdges(
     })
   }
 
+  reassignPorts(routed, iconMap, obstacles)
+  spreadPorts(routed, iconMap, obstacles)
   centerPorts(routed, iconMap, obstacles)
-  alignElbows(routed, obstacles)
 
   return routed
 }

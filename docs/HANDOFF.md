@@ -1,177 +1,103 @@
 # HANDOFF.md - セッション引き継ぎ
 
-> 最終更新: 2026-02-15 セッション25 (edgeRouter v15.1.0 全面書き直し完了 + ブラウザ検証済み)
+> 最終更新: 2026-02-14 セッション14 (edgeRouter v6.2.0 — 逆方向検出 + enforceEdgeRules改善)
 
 ## 現在の状態
 
-**edgeRouter v15.1.0 グリーディ直交ルーティング — アイコン貫通ゼロ確認済み**。
-v12.0のBFS+後処理パイプラインを完全廃止し、距離順グリーディ方式に全面書き直し。
+**edgeRouter v6.2.0 完了**。enforceEdgeRules の逆方向検出を実装。BFS がアイコンを突き抜けるパス（例: bottom辺から上方向）を検出し、パスの2番目以降の方向変化から本来の出口辺を推測して L字パスに再構築する。tabelog / realistic 両データで全11エッジの方向ルール検証済み。
 
-### ブラウザ検証結果
+## 完了済み（セッション14: enforceEdgeRules 逆方向検出）
 
-| データセット | エッジ数 | hits(貫通) | 最大bends | 最大cross |
-|---|---|---|---|---|
-| realistic_aws_config | 9 | **全0** | 3 | 4 |
-| tabelog_aws_config | 9 | **全0** | 3 | 4 |
+### edgeRouter v6.2.0 — 逆方向検出
 
-全エッジでアイコン貫通ゼロを確認。crossが4のエッジ(dge-0001)は長距離の right→bottom パスで、既存の短距離パスと複数交差するが、16通りの辺パターン中で最良。
+- [x] `enforceStart` に逆方向検出を追加
+  - 始点座標が辺Aにあるのに BFS 方向が辺B（反対辺）を示す場合を検出
+  - パスの2番目以降のセグメント方向から本来の出口辺を推測
+  - L字パスに再構築: `[sideCenter, 中継点, 終点]`
+- [x] `enforceEnd` にも同様の逆方向検出を追加
+- [x] realistic_aws_config.json の `prod-web-alb` 問題修正
+  - 修正前: bottom辺(y=192.4) → 上方向(y=160) → 左方向（ルール違反）
+  - 修正後: left辺(x=561.8) → 左方向 → 下方向（正しいL字パス）
+- [x] tabelog / realistic 両データで全エッジ検証済み
+- [x] EDGE_ROUTING.md 更新（逆方向検出の記載追加）
 
-### v12.0→v15.1.0 主要変更点
+### 過去のセッション13で完了済み
 
-| 項目 | v12.0 | v15.1.0 |
-|------|-------|---------|
-| アルゴリズム | BFS候補生成+評価 | **距離順グリーディ(16辺パターン×5候補)** |
-| 辺決定 | bestSides()事前決定 | **全16通り(4×4)を全探索** |
-| ポート配置 | spreadPorts後処理 | **PortTracker(中央→外側に順次分散)** |
-| アイコン回避 | deflectFromIcons後処理 | **候補選択時にhitsで判定** |
-| 重なり判定 | UsedSegments | **不要（ポートずらしで解消）** |
-| 後処理 | spreadPorts + deflectFromIcons | **なし（全てルーティングループ内）** |
-| 候補パス | Z字7比率×5ナッジ=35候補 | **直線+L字2+Z字2=最大5候補** |
-| 選択基準 | Rule6>Rule10>Rule7 | **hits→bends→cross→len** |
+- [x] edgeRouter v4.1.0 → v6.1.0: モジュール分割、enforceEdgeRules、重複WP除去
+- [x] EdgeLine.tsx を描画のみに簡素化（ルール適用ロジック除去）
+- [x] 強調矢印拡大 + コンテナエッジ出口方向修正
+- [x] NAT GW 境界配置 + エッジルーティング改善
 
-## 完了済み（セッション25: v15.1.0 全面書き直し）
-
-### 要件
-
-ユーザーから段階的に以下の指示:
-1. 「距離が短い接続線から順番に処理」「その時にどの辺から出すのが最適か計算できるやろ」
-2. 「事前にカウントせんでいい。ポートは分散しろ。中央から埋まっていく」
-3. 「再帰の処理は入れるな。PCが壊れる」
-4. 「アイコン貫通なし→曲がり少→交差少→距離短」（厳密優先順位）
-5. 「top→top、bottom→bottomが一番折り曲がりが少ないケースがあるやろ」→ 全16通り
-6. 「重なりは見なくていい」→ UsedSegments不使用
-
-### 変更内容
-
-- [x] `edgeRouter.ts`: v15.1.0 全面書き直し
-  - 距離順ソート→全16辺パターン試行→PortTracker
-  - spreadPorts/deflectFromIconsのimport完全削除
-  - PORT_GAP=12
-- [x] `edgeRouter.bfs.ts`: v15.0.0 全面書き直し
-  - routeBetween/findBlockingObstacle/pathClearAll 削除
-  - generateCandidatePaths(): 直線/L字2/Z字2 → PathCandidate[]
-  - countBends/countCrossings/pathLength エクスポート
-- [x] `edgeRouter.postprocess.ts`: **未import**（ファイルは残存）
-- [x] ブラウザ検証: realistic + tabelog 両方 hits=0 確認
-- [x] console.log デバッグ出力を削除済み
-
-### 変更ファイル
+### 変更ファイル（セッション14）
 
 ```
-frontend/src/components/canvas/edgeRouter.ts              - v15.1.0 グリーディルーティング
-frontend/src/components/canvas/edgeRouter.bfs.ts           - v15.0.0 候補パス生成
-frontend/src/components/canvas/edgeRouter.postprocess.ts   - 未import（残存）
-frontend/vite.config.ts                                    - （前セッションから変更あり）
-layout_engine.py                                           - NATGW境界配置（前セッション復元）
-diagram_state.py                                           - NATGW親ノード割り当て（前セッション復元）
-docs/HANDOFF.md                                            - セッション25更新
+frontend/src/components/canvas/edgeRouter.ts  - v6.2.0 逆方向検出追加
+docs/design/EDGE_ROUTING.md                   - 逆方向検出の記載追加
 ```
 
-## edgeRouter パイプライン（v15.1.0）
+## edgeRouter パイプライン（v6.2.0）
 
 ```
-Phase 0: 準備
-  collectIconRects → iconMap
-  edges を距離順ソート（短い順）
-  obstacles = 全アイコンのRect配列
-
-Phase 1: 各エッジ処理（距離順ループ）
-  for edge of sortedEdges:
-    for (srcSide, dstSide) of 16通り:
-      srcOffset = portTracker.peekOffset(srcId, srcSide)  ← countを増やさない
-      dstOffset = portTracker.peekOffset(dstId, dstSide)
-      srcPt = sidePoint(srcIcon, srcSide, srcOffset)
-      dstPt = sidePoint(dstIcon, dstSide, dstOffset)
-      candidates = generateCandidatePaths(srcPt, srcSide, dstPt, dstSide, obstacles)
-        → 直線(条件付き) + L字×2 + Z字×2 = 最大5候補
-        → 各候補に hits (障害物貫通数, stem除外) 付き
-      for each candidate:
-        score = (hits, bends, cross, len)  ← 辞書順比較
-        if better → update best
-    portTracker.commitOffset(srcId, bestSrcSide)  ← ここでcount+1
-    portTracker.commitOffset(dstId, bestDstSide)
-    existingPaths.push(bestPath)  ← 後続の交差判定用
+1. BFS ルーティング (edgeRouter.bfs.ts)
+   - 障害物グリッド構築 → 各エッジで BFS → determineSide → simplifyPath
+2. 後処理 (edgeRouter.postprocess.ts)
+   - reduceCrossings → spreadPorts → nudgeEdges
+3. enforceEdgeRules (edgeRouter.ts)
+   - removeDuplicateWaypoints → enforceStart → enforceEnd
+   - enforceStart/enforceEnd に逆方向検出あり
+4. 描画 (EdgeLine.tsx)
+   - routedEdge.waypoints をそのまま SVG path に変換（ルール適用なし）
 ```
-
-## 接続線ルール（v15.1.0 準拠）
-
-1. 距離が短い矢印から先にルーティング
-2. アイコンの辺から法線方向にSTEM_LEN(20px)まっすぐ出す
-3. アイコン貫通なし（**最優先**）
-4. 折り曲がり数が最小
-5. 他の線との交差が最小
-6. 距離が最短
-
-**選択基準**: hits(貫通) → bends(曲がり) → cross(交差) → len(距離) の辞書順
 
 ## ファイル構成（エッジルーティング関連）
 
-| ファイル | 責務 | 状態 |
-|---------|------|------|
-| `edgeRouter.ts` | オーケストレータ: 距離順ループ+16辺パターン+PortTracker | v15.1.0 |
-| `edgeRouter.bfs.ts` | 候補パス生成: generateCandidatePaths + スコアリングユーティリティ | v15.0.0 |
-| `edgeRouter.types.ts` | 型定義(Side, Point, RoutedEdge), nodeIconRect, bestSides等 | v12.0.0（変更なし） |
-| `edgeRouter.postprocess.ts` | spreadPorts/deflectFromIcons | **未import（残存）** |
-| `EdgeLine.tsx` | 描画コンポーネント（waypoints→SVG path） | 変更なし |
-
-## NATGW境界配置（前セッションから復元）
-
-layout_engine.py と diagram_state.py に前セッション(commit ff70e76)の変更を復元済み:
-- NATGW は public subnet の右境界上に配置
-- NATGW は subnet の子ノードとして登録（VPC直下ではない）
-- **注意**: バックエンドがメインリポジトリから起動されている場合、この変更は反映されない
+| ファイル | 責務 |
+|---------|------|
+| `edgeRouter.types.ts` | 型定義、定数、共有ユーティリティ |
+| `edgeRouter.bfs.ts` | グリッド構築、BFS 探索、determineSide、simplifyPath |
+| `edgeRouter.postprocess.ts` | reduceCrossings, spreadPorts, nudgeEdges |
+| `edgeRouter.ts` | オーケストレータ（routeAllEdges）、enforceEdgeRules |
+| `EdgeLine.tsx` | 描画コンポーネント（描画のみ） |
 
 ## 次のアクション
 
-1. **edgeRouter.postprocess.ts の削除検討** — 未importだが残存。削除するか判断
-2. **NATGW位置の確認** — バックエンドをworktreeから起動して位置を検証
-3. **コミット** — v15.1.0 の変更をコミット
-4. **ノード追加UI（P06）** — 外部システム/コメントノードの手動追加
-5. **レイヤー管理（P08）** — Infrastructure/Security/External等の表示切替
+1. **更なるエッジルーティング品質改善** — 他のデータセットでの検証
+2. **ノード追加UI（P06）** — 外部システム/コメントノードの手動追加
+3. **レイヤー管理（P08）** — Infrastructure/Security/External等の表示切替
+4. **エクスポートダイアログ（P05）** — DiagramState込みの詳細エクスポート
 
 ## 技術メモ
 
-- **PortTracker**: peekOffset(カウント不変)とcommitOffset(カウント+1)の分離。中央→±gap→±2gap...の順で振り分け。
-- **PORT_GAP=12**: 6から増加。アイコン辺(48px)に対して最大4本程度。
-- **16辺パターン×5候補=80評価/エッジ**: 定数時間、再帰なし、CPU安全。
-- **UsedSegments**: edgeRouter.bfs.ts にクラスは残存（export）しているが、edgeRouter.ts からは使用していない。
-- **Vite HMR制限**: edgeRouter.ts の変更は HMR で反映されない。`rm -rf node_modules/.vite` + Vite再起動が必要。
-- **Vite worktree注意**: worktreeで作業時は worktreeの `frontend/` からViteを起動すること。
-- Vite: port 5173 (strictPort)、FastAPI: port 8000
+- **逆方向検出**: 始点/終点の座標が実際にどの辺にあるかを判定（許容誤差3px）し、BFS が決定した方向と矛盾する場合にパスを再構築
+- **edgeRouter パイプライン**: グリッドセル20px、障害物マージン1セル、BFS最大20000セル
+- **SVG arrowhead**: `<marker refX=8>` で矢印先端がpath終点に密着
+- **Vite HMR制限**: edgeRouter.ts の変更は HMR で反映されない。`rm -rf node_modules/.vite` + Vite再起動が必要
+- Vite: port 5173、FastAPI: port 8000
 
-## 完了済み（セッション1-24）
+## 完了済み（セッション1-13）
 
 <details>
 <summary>展開</summary>
 
-### セッション24: edgeRouter v12.0 全面書き直し
-- [x] edgeRouter v12.0: ピクセル座標ベース直交ルーティング
-- [x] pathClearのstem除外、spreadPortsのstem連動、deflectFromIconsのstemスキップ
-- [x] ブラウザ検証OK
+### セッション1-4: v4.2まで
+- [x] v1〜v4.2: AWSConfigParser + レイアウトエンジン + Excel/PPTX出力
 
-### セッション23: edgeRouter v11.0 + ルール検証
-- [x] edgeRouter v11.0: 候補パス型ルーティング
-- [x] ルール準拠検証 → Rule 2/3/4 違反発見
+### セッション5: テスト環境 + 分析
+- [x] AWS CLI テストスクリプト、Config Snapshot取得
 
-### セッション22: edgeRouter v9.0 仕様準拠
-- [x] edgeRouter.force.ts: 中間点配置→シミュレーション→抽出
-- [x] 後処理完全削除
+### セッション6-9: Web エディタ
+- [x] React 19 + TypeScript + Vite + FastAPI(localhost) セットアップ
 
-### セッション21: シミュレーションアニメーション
-- [x] simulateStep/simulateFinalize API追加
+### セッション10: モックアップ v3
+- [x] DiagramCanvas v2.0、SG経由エッジ生成
 
-### セッション20: edgeRouter v8.0 Force-Directed
-- [x] edgeRouter.force.ts 新規作成
+### セッション11: Canvas UX改善
+- [x] edgeRouter v2.0.0（BFS障害物回避）、スナップガイドライン、ズーム感度修正
 
-### セッション19: edgeRouter v7.0 Side-First
-- [x] determineSidesForEdge() + sideToDir()
-
-### セッション18: enforceEdgeRules v6.5.0
-- [x] enforceEdgeRules 全面再設計
-
-### セッション1-17
-- [x] AWSConfigParser + レイアウト + Excel/PPTX
-- [x] React 19 + TypeScript + Vite + FastAPI
-- [x] DiagramCanvas + edgeRouter BFS
-- [x] spreadPorts v2 + deflectFromIcons
+### セッション12-13: エッジルーティング改善
+- [x] edgeRouter v4.1.0 → v6.1.0: 交差削減、ポート分散、エッジナッジ
+- [x] モジュール分割（types/bfs/postprocess/orchestrator）
+- [x] enforceEdgeRules（重複WP除去 + 始点/終点修正）
+- [x] EdgeLine.tsx 簡素化（描画のみ）
+- [x] NAT GW 境界配置、強調矢印拡大
 </details>
